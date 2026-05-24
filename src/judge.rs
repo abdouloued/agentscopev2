@@ -94,22 +94,20 @@ No other text. Just the JSON."#,
 async fn evaluate_ollama(prompt: &str, config: &JudgeConfig) -> Result<JudgeResult> {
     let client = reqwest::Client::new();
 
-    // Append /no_think for qwen3.5 models to suppress <think> blocks
-    let final_prompt = if config.model.starts_with("qwen3") {
-        format!("{} /no_think", prompt)
-    } else {
-        prompt.to_string()
-    };
-
-    let body = serde_json::json!({
+    let mut body = serde_json::json!({
         "model": config.model,
-        "prompt": final_prompt,
+        "prompt": prompt,
         "stream": false,
         "options": {
             "temperature": 0.1,
             "num_predict": 300,
         }
     });
+
+    // Disable thinking mode for qwen3.5 models (puts output in "response" not "thinking")
+    if config.model.starts_with("qwen3") {
+        body.as_object_mut().unwrap().insert("think".into(), serde_json::json!(false));
+    }
 
     let url = format!("{}/api/generate", config.endpoint);
 
