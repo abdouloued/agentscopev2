@@ -6,7 +6,7 @@ use clap::{Parser, Subcommand, ValueEnum};
     version,
     about = "Did your AI agent do only what you asked?",
     long_about = "AgentScope is a scope firewall and audit layer for AI coding agents.\nIt records your mission, watches what the agent actually changes,\nand blocks policy violations before they reach git.",
-    after_help = "EXAMPLES:\n  agentscope start \"Fix the rate-limit bug in api/middleware.ts\"\n  agentscope check\n  agentscope audit last-5\n  agentscope use claude\n",
+    after_help = "EXAMPLES:\n  agentscope start \"Fix the rate-limit bug in api/middleware.ts\"\n  agentscope check\n  agentscope judge --model qwen3.5:2b\n  agentscope judge --provider claude --model claude-sonnet-4-20250514\n  agentscope report\n  agentscope diff --problems\n  agentscope hook install\n  agentscope audit last-5\n  agentscope use claude\n",
     styles = clap_styles(),
 )]
 pub struct Cli {
@@ -46,6 +46,45 @@ pub enum Commands {
         share: bool,
     },
 
+    /// Run the LLM judge on current changes — pick any model
+    Judge {
+        /// LLM provider: ollama, claude, openai (default: from config)
+        #[arg(short, long, value_enum)]
+        provider: Option<JudgeProviderArg>,
+
+        /// Model name, e.g. qwen3.5:2b, claude-sonnet-4-20250514, gpt-4o (default: from config)
+        #[arg(short, long)]
+        model: Option<String>,
+
+        /// Ollama endpoint override (default: http://localhost:11434)
+        #[arg(long)]
+        endpoint: Option<String>,
+
+        /// Output raw JSON instead of pretty-print
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Generate a detailed session report (terminal or markdown)
+    Report {
+        /// Output as Markdown (for sharing in PRs)
+        #[arg(long)]
+        markdown: bool,
+    },
+
+    /// Show git diff with scope annotations (shortcut for quick review)
+    Diff {
+        /// Show only blocked and unasked files
+        #[arg(long)]
+        problems: bool,
+    },
+
+    /// Install or manage git hooks for automatic scope checking
+    Hook {
+        #[command(subcommand)]
+        action: HookAction,
+    },
+
     /// Audit past sessions — what changed, why, when
     Audit {
         /// Range: "last-5", "today", "this-week", or a git range like "HEAD~3..HEAD"
@@ -76,6 +115,27 @@ pub enum Commands {
 
     /// Show the current active session status (one-liner)
     Status,
+}
+
+#[derive(Subcommand, Clone, Debug)]
+pub enum HookAction {
+    /// Install a pre-commit hook that runs `agentscope check`
+    Install,
+    /// Remove the AgentScope pre-commit hook
+    Uninstall,
+    /// Show current hook status
+    Status,
+}
+
+/// Provider argument for the judge command (maps to config::JudgeProvider)
+#[derive(ValueEnum, Clone, Debug)]
+pub enum JudgeProviderArg {
+    /// Local Ollama (default)
+    Ollama,
+    /// Anthropic Claude API
+    Claude,
+    /// OpenAI API
+    Openai,
 }
 
 #[derive(ValueEnum, Clone, Debug, PartialEq)]

@@ -7,6 +7,7 @@ mod judge;
 mod output;
 mod tui;
 mod audit;
+mod hooks;
 
 use anyhow::Result;
 use clap::Parser;
@@ -30,6 +31,22 @@ async fn main() -> Result<()> {
         }
         Commands::Check { session_id, json, share } => {
             session::check(session_id, json, share).await
+        }
+        Commands::Judge { provider, model, endpoint, json } => {
+            session::judge(provider, model, endpoint, json).await
+        }
+        Commands::Report { markdown } => {
+            session::report(markdown).await
+        }
+        Commands::Diff { problems } => {
+            session::diff(problems).await
+        }
+        Commands::Hook { action } => {
+            match action {
+                cli::HookAction::Install => hooks::install().await,
+                cli::HookAction::Uninstall => hooks::uninstall().await,
+                cli::HookAction::Status => hooks::status().await,
+            }
         }
         Commands::Audit { range, session_id } => {
             audit::run(range, session_id).await

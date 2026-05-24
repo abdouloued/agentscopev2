@@ -58,10 +58,12 @@ pub async fn run_watch() -> Result<()> {
     result
 }
 
-/// TUI state for flash messages and refresh counter
+/// TUI state for flash messages, refresh counter, and dashboard toggle
 struct WatchState {
     flash: Option<(String, Instant)>,
     refresh_count: u64,
+    show_dashboard: bool,
+    started_at: Instant,
 }
 
 impl WatchState {
@@ -69,6 +71,8 @@ impl WatchState {
         Self {
             flash: None,
             refresh_count: 0,
+            show_dashboard: false,
+            started_at: Instant::now(),
         }
     }
 
@@ -80,6 +84,19 @@ impl WatchState {
         match &self.flash {
             Some((msg, when)) if when.elapsed() < Duration::from_secs(2) => Some(msg),
             _ => None,
+        }
+    }
+
+    fn uptime_str(&self) -> String {
+        let secs = self.started_at.elapsed().as_secs();
+        let mins = secs / 60;
+        let hrs = mins / 60;
+        if hrs > 0 {
+            format!("{}h {}m", hrs, mins % 60)
+        } else if mins > 0 {
+            format!("{}m {}s", mins, secs % 60)
+        } else {
+            format!("{}s", secs)
         }
     }
 }
@@ -122,13 +139,23 @@ async fn run_app<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>) -> Re
                     (KeyCode::Char('r'), _) => {
                         state.set_flash("⟳ refreshed");
                     }
+                    // Toggle dashboard
+                    (KeyCode::Char('d'), _) => {
+                        state.show_dashboard = !state.show_dashboard;
+                        let msg = if state.show_dashboard { "dashboard on" } else { "dashboard off" };
+                        state.set_flash(msg);
+                    }
                     // Check hint
                     (KeyCode::Char('c'), _) => {
                         state.set_flash("→ run `agentscope check` in another terminal");
                     }
+                    // Judge hint
+                    (KeyCode::Char('j'), _) => {
+                        state.set_flash("→ run `agentscope judge` in another terminal");
+                    }
                     // Help
                     (KeyCode::Char('?') | KeyCode::Char('h'), _) => {
-                        state.set_flash("r=refresh  c=check  q/esc=quit  ?=help");
+                        state.set_flash("r=refresh  d=dashboard  j=judge  c=check  q=quit");
                     }
                     _ => {}
                 }
@@ -156,13 +183,29 @@ fn ui(
         .margin(1)
         .constraints([
             Constraint::Length(3),  // header
-            Constraint::Min(10),   // file list
+            Constraint::Min(10),   // main content
             Constraint::Length(3), // summary bar
         ])
         .split(area);
 
     render_header(f, layout[0], session);
-    render_file_list(f, layout[1], files);
+
+    if state.show_dashboard {
+        // Two-column layout: files on left, stats on right
+        let cols = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Percentage(60),
+                Constraint::Percentage(40),
+            ])
+            .split(layout[1]);
+
+        render_file_list(f, cols[0], files);
+        render_dashboard_panel(f, cols[1], session, files, state);
+    } else {
+        render_file_list(f, layout[1], files);
+    }
+
     render_summary_bar(f, layout[2], files, state);
 }
 
@@ -254,6 +297,125 @@ fn render_file_list(f: &mut Frame, area: Rect, files: Option<&[crate::policy::An
     f.render_widget(list, area);
 }
 
+// ── Dashboard stats panel (toggled with 'd') ──────────────────────────────────
+
+fn render_dashboard_panel(
+    f: &mut Frame,
+    area: Rect,
+    session: Option<&crate::session::Session>,
+    files: Option<&[crate::policy::AnnotatedFile]>,
+    state: &WatchState,
+) {
+    let block = Block::default()
+        .title(Span::styled(" Dashboard ", Style::default().fg(CLR_PURPLE).add_modifier(Modifier::BOLD)))
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(CLR_BORDER))
+        .style(Style::default().bg(CLR_BG));
+
+    let mut lines: Vec<Line> = Vec::new();
+
+    // Session info
+    if let Some(s) = session {
+        lines.push(Line::from(vec![
+            Span::styled("  Mission  ", Style::default().fg(CLR_DIM)),
+        ]));
+        // Truncate mission to fit panel
+        let mission_display = if s.mission.len() > 30 {
+            format!("{}…", &s.mission[..29])
+        } else {
+            s.mission.clone()
+        };
+        lines.push(Line::from(vec![
+            Span::styled(format!("  {}", mission_display), Style::default().fg(CLR_WHITE)),
+        ]));
+        lines.push(Line::from(Span::raw("")));
+    }
+
+    // File stats
+    if let Some(files) = files {
+        let in_scope = files.iter().filter(|f| f.verdict == FileVerdict::InScope).count();
+        let unasked = files.iter().filter(|f| f.verdict == FileVerdict::Unasked).count();
+        let blocked = files.iter().filter(|f| f.verdict.is_blocked()).count();
+        let total_add: usize = files.iter().map(|f| f.diff.additions).sum();
+        let total_del: usize = files.iter().map(|f| f.diff.deletions).sum();
+
+        lines.push(Line::from(vec![
+            Span::styled("  ── Files ──", Style::default().fg(CLR_DIM)),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled(format!("  {} total", files.len()), Style::default().fg(CLR_WHITE)),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled(format!("  {} in scope", in_scope), Style::default().fg(CLR_GREEN)),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled(format!("  {} unasked", unasked), Style::default().fg(CLR_AMBER)),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled(format!("  {} blocked", blocked), Style::default().fg(CLR_RED)),
+        ]));
+        lines.push(Line::from(Span::raw("")));
+
+        lines.push(Line::from(vec![
+            Span::styled("  ── Lines ──", Style::default().fg(CLR_DIM)),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled(format!("  +{}", total_add), Style::default().fg(CLR_GREEN)),
+            Span::styled(format!("  -{}", total_del), Style::default().fg(CLR_RED)),
+        ]));
+        lines.push(Line::from(Span::raw("")));
+
+        // Health bar
+        let total = files.len().max(1);
+        let health_pct = (in_scope * 100) / total;
+        let filled = (health_pct / 10).min(10);
+        let empty = 10 - filled;
+        let bar_color = if blocked > 0 { CLR_RED } else if unasked > 0 { CLR_AMBER } else { CLR_GREEN };
+
+        lines.push(Line::from(vec![
+            Span::styled("  Health  ", Style::default().fg(CLR_DIM)),
+            Span::styled("█".repeat(filled), Style::default().fg(bar_color)),
+            Span::styled("░".repeat(empty), Style::default().fg(CLR_DIM)),
+            Span::styled(format!(" {}%", health_pct), Style::default().fg(bar_color)),
+        ]));
+    }
+
+    lines.push(Line::from(Span::raw("")));
+
+    // Uptime
+    lines.push(Line::from(vec![
+        Span::styled("  ── Watch ──", Style::default().fg(CLR_DIM)),
+    ]));
+    lines.push(Line::from(vec![
+        Span::styled(format!("  Uptime  {}", state.uptime_str()), Style::default().fg(CLR_MUTED)),
+    ]));
+    lines.push(Line::from(vec![
+        Span::styled(format!("  Cycles  {}", state.refresh_count), Style::default().fg(CLR_MUTED)),
+    ]));
+
+    lines.push(Line::from(Span::raw("")));
+
+    // Quick commands
+    lines.push(Line::from(vec![
+        Span::styled("  ── Commands ──", Style::default().fg(CLR_DIM)),
+    ]));
+    lines.push(Line::from(vec![
+        Span::styled("  agentscope judge", Style::default().fg(CLR_CYAN)),
+    ]));
+    lines.push(Line::from(vec![
+        Span::styled("  agentscope report", Style::default().fg(CLR_CYAN)),
+    ]));
+    lines.push(Line::from(vec![
+        Span::styled("  agentscope diff", Style::default().fg(CLR_CYAN)),
+    ]));
+    lines.push(Line::from(vec![
+        Span::styled("  agentscope hook install", Style::default().fg(CLR_CYAN)),
+    ]));
+
+    let para = Paragraph::new(lines).block(block);
+    f.render_widget(para, area);
+}
+
 fn render_summary_bar(
     f: &mut Frame,
     area: Rect,
@@ -279,6 +441,8 @@ fn render_summary_bar(
         // Pulse indicator — blinks to show the TUI is alive
         let pulse = if state.refresh_count % 4 < 2 { "●" } else { "○" };
 
+        let dashboard_hint = if state.show_dashboard { "d=hide" } else { "d=dashboard" };
+
         Line::from(vec![
             Span::styled(format!("  {} in scope", in_scope), Style::default().fg(CLR_GREEN)),
             Span::styled("  ·  ", Style::default().fg(CLR_DIM)),
@@ -286,13 +450,13 @@ fn render_summary_bar(
             Span::styled("  ·  ", Style::default().fg(CLR_DIM)),
             Span::styled(format!("{} blocked", blocked), Style::default().fg(CLR_RED)),
             Span::styled(
-                format!("    {} live  r=refresh  q=quit  ?=help", pulse),
+                format!("    {} live  r=refresh  {}  ?=help", pulse, dashboard_hint),
                 Style::default().fg(CLR_DIM),
             ),
         ])
     } else {
         Line::from(Span::styled(
-            "  no session    q=quit  ?=help",
+            "  no session    d=dashboard  q=quit  ?=help",
             Style::default().fg(CLR_DIM),
         ))
     };

@@ -223,6 +223,10 @@ impl Printer {
         self.blank();
     }
 
+    pub fn print_file_row_public(&self, file: &AnnotatedFile) {
+        self.print_file_row(file);
+    }
+
     fn print_file_row(&self, file: &AnnotatedFile) {
         let path = file.diff.path.display().to_string();
         let stats = format!("+{} −{}", file.diff.additions, file.diff.deletions);
@@ -315,7 +319,7 @@ impl Printer {
         );
     }
 
-    fn print_judge_result(&self, judge: &JudgeResult) {
+    pub fn print_judge_result(&self, judge: &JudgeResult) {
         self.blank();
         println!(
             "  {}  {}",
@@ -340,8 +344,18 @@ impl Printer {
             theme::muted().apply_to(format!("{}% confidence changes match mission", confidence_pct)),
         );
 
+        // Confidence bar
+        let filled = (confidence_pct as usize / 10).min(10);
+        let empty = 10 - filled;
+        let bar_color = if confidence_pct >= 70 { theme::green() } else if confidence_pct >= 40 { theme::amber() } else { theme::red() };
+        println!(
+            "    {}{}  {}%",
+            bar_color.apply_to("█".repeat(filled)),
+            theme::dim().apply_to("░".repeat(empty)),
+            confidence_pct,
+        );
+
         self.blank();
-        // Wrap reasoning at ~60 chars
         println!(
             "    {}",
             theme::muted().apply_to(format!("\"{}\"", judge.reasoning)),
@@ -367,6 +381,226 @@ impl Printer {
                 theme::dim().apply_to(format!("{} other files unchanged", clean)),
             );
         }
+    }
+
+    // ── Full report dashboard ─────────────────────────────────────────────────
+
+    pub fn print_full_report(&self, report: &CheckReport) {
+        let session = &report.session;
+        let files = &report.annotated;
+
+        let in_scope = files.iter().filter(|f| f.verdict == FileVerdict::InScope).count();
+        let unasked = files.iter().filter(|f| f.verdict == FileVerdict::Unasked).count();
+        let blocked = files.iter().filter(|f| f.verdict.is_blocked()).count();
+        let total_add: usize = files.iter().map(|f| f.diff.additions).sum();
+        let total_del: usize = files.iter().map(|f| f.diff.deletions).sum();
+
+        // Status badge
+        let status = if blocked > 0 {
+            style("  ● BLOCKED  ").red().bold()
+        } else if unasked > 0 {
+            style("  ● REVIEW   ").color256(214).bold()
+        } else {
+            style("  ● CLEAN    ").green().bold()
+        };
+
+        self.blank();
+
+        // ── Header box ──
+        println!("  {}", theme::dim().apply_to("╭──────────────────────────────────────────────────────────╮"));
+        println!("  {}  {}  {}",
+            theme::dim().apply_to("│"),
+            style("AgentScope Session Report").white().bold(),
+            theme::dim().apply_to("                          │"),
+        );
+        println!("  {}", theme::dim().apply_to("├──────────────────────────────────────────────────────────┤"));
+        println!("  {}  {} {}{}",
+            theme::dim().apply_to("│"),
+            theme::label().apply_to("Session "),
+            theme::cyan().apply_to(&session.id[..12]),
+            theme::dim().apply_to(&format!("{}│", " ".repeat(58 - 12 - 10))),
+        );
+        println!("  {}  {} {}{}",
+            theme::dim().apply_to("│"),
+            theme::label().apply_to("Agent   "),
+            theme::muted().apply_to(&session.agent),
+            theme::dim().apply_to(&format!("{}│", " ".repeat(58 - session.agent.len() - 10))),
+        );
+        println!("  {}  {} {}{}",
+            theme::dim().apply_to("│"),
+            theme::label().apply_to("Mission "),
+            style(&session.mission).white(),
+            theme::dim().apply_to(&format!(
+                "{}│",
+                " ".repeat(58usize.saturating_sub(session.mission.len() + 10))
+            )),
+        );
+        println!("  {}  {} {}{}",
+            theme::dim().apply_to("│"),
+            theme::label().apply_to("Status  "),
+            status,
+            theme::dim().apply_to(&format!(
+                "{}│",
+                " ".repeat(58usize.saturating_sub(10 + 12))
+            )),
+        );
+        println!("  {}", theme::dim().apply_to("╰──────────────────────────────────────────────────────────╯"));
+
+        self.blank();
+
+        // ── Duration ──
+        if let Ok(started) = chrono::DateTime::parse_from_rfc3339(&session.started_at) {
+            let duration = chrono::Utc::now().signed_duration_since(started);
+            let mins = duration.num_minutes();
+            let hrs = mins / 60;
+            let remaining_mins = mins % 60;
+            let duration_str = if hrs > 0 {
+                format!("{}h {}m", hrs, remaining_mins)
+            } else {
+                format!("{}m", remaining_mins)
+            };
+            println!("  {}  {}", 
+                theme::label().apply_to("Duration"),
+                theme::muted().apply_to(duration_str),
+            );
+        }
+
+        self.blank();
+
+        // ── Stats grid ──
+        println!("  {}",
+            style("  Files                    Lines").dim(),
+        );
+        println!("  {}  {}  {}  {}  {}",
+            style(format!("  {} total", files.len())).white(),
+            style(format!("{} in scope", in_scope)).green(),
+            style("│").dim(),
+            style(format!("+{}", total_add)).green(),
+            style(format!("-{}", total_del)).red(),
+        );
+        println!("  {}  {}",
+            style(format!("  {} unasked", unasked)).color256(214),
+            style(format!("{} blocked", blocked)).red(),
+        );
+
+        self.blank();
+        self.rule();
+        self.blank();
+
+        // ── File list ──
+        println!("  {}", style("  Changed Files").white().bold());
+        self.blank();
+
+        for file in files.iter().take(25) {
+            self.print_file_row(file);
+        }
+        if files.len() > 25 {
+            println!("  {}  {}", fmt_tag_skip(),
+                theme::dim().apply_to(format!("… and {} more files", files.len() - 25)),
+            );
+        }
+
+        // Limit warnings
+        for w in &report.limit_warnings {
+            self.blank();
+            match w {
+                LimitWarning::TooManyFiles { actual, limit } => {
+                    self.print_warn_banner(&format!(
+                        "{} files changed (limit: {}) — unusually broad",
+                        actual, limit
+                    ));
+                }
+                LimitWarning::TooManyLines { actual, limit } => {
+                    self.print_warn_banner(&format!(
+                        "{} lines changed (limit: {}) — review carefully",
+                        actual, limit
+                    ));
+                }
+            }
+        }
+
+        self.blank();
+        self.rule();
+
+        // ── Judge verdict ──
+        if let Some(judge) = &report.judge_result {
+            self.print_judge_result(judge);
+            self.rule();
+        }
+
+        self.blank();
+
+        // ── Recommended actions ──
+        println!("  {}", style("  Next Steps").white().bold());
+        self.blank();
+
+        if blocked > 0 {
+            println!("    {}  {}",
+                style("1.").red().bold(),
+                style("Revert blocked file changes or update your policy").red(),
+            );
+            println!("    {}  {}",
+                style("2.").dim(),
+                theme::muted().apply_to("Run: agentscope check"),
+            );
+            println!("    {}  {}",
+                style("3.").dim(),
+                theme::muted().apply_to("Commit only after all blocks are resolved"),
+            );
+        } else if unasked > 0 {
+            println!("    {}  {}",
+                style("1.").color256(214).bold(),
+                style("Review unasked files — are they part of the mission?").color256(214),
+            );
+            println!("    {}  {}",
+                style("2.").dim(),
+                theme::muted().apply_to("If intentional, proceed with commit"),
+            );
+            println!("    {}  {}",
+                style("3.").dim(),
+                theme::muted().apply_to("Run: git commit  (hook will re-check)"),
+            );
+        } else {
+            println!("    {}  {}",
+                style("✓").green().bold(),
+                style("All changes are in scope — safe to commit").green(),
+            );
+            println!("    {}  {}",
+                style("→").dim(),
+                theme::muted().apply_to("Run: git commit"),
+            );
+        }
+
+        self.blank();
+
+        // ── Quick commands reference ──
+        println!("  {}", theme::dim().apply_to("  ─── Quick Commands ───"));
+        println!("  {}  {}",
+            theme::muted().apply_to("  agentscope diff"),
+            theme::dim().apply_to("— annotated file list"),
+        );
+        println!("  {}  {}",
+            theme::muted().apply_to("  agentscope diff --problems"),
+            theme::dim().apply_to("— only blocked/unasked"),
+        );
+        println!("  {}  {}",
+            theme::muted().apply_to("  agentscope judge"),
+            theme::dim().apply_to("— re-run LLM judge"),
+        );
+        println!("  {}  {}",
+            theme::muted().apply_to("  agentscope judge -m llama3"),
+            theme::dim().apply_to("— judge with a different model"),
+        );
+        println!("  {}  {}",
+            theme::muted().apply_to("  agentscope hook install"),
+            theme::dim().apply_to("— auto-check on every commit"),
+        );
+        println!("  {}  {}",
+            theme::muted().apply_to("  agentscope check --json"),
+            theme::dim().apply_to("— CI-friendly output"),
+        );
+
+        self.blank();
     }
 }
 

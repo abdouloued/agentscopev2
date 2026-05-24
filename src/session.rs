@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use ulid::Ulid;
 
-use crate::cli::AgentKind;
-use crate::config::{self, ACTIVITY_LOG, SESSION_DIR};
+use crate::cli::{AgentKind, JudgeProviderArg};
+use crate::config::{self, ACTIVITY_LOG, SESSION_DIR, JudgeConfig, JudgeProvider};
 use crate::git;
 use crate::judge;
 use crate::output::{CheckReport, Printer};
@@ -111,6 +111,190 @@ pub async fn check(session_id: Option<String>, json: bool, share: bool) -> Resul
     if has_blocks {
         std::process::exit(1);
     }
+
+    Ok(())
+}
+
+// ── judge (standalone) ────────────────────────────────────────────────────────
+
+pub async fn judge(
+    provider: Option<JudgeProviderArg>,
+    model: Option<String>,
+    endpoint: Option<String>,
+    json: bool,
+) -> Result<()> {
+    let p = Printer::new();
+    let config = config::load_or_default();
+    let session = load_active_session()?;
+
+    let repo = git::open_repo()?;
+    let diff = git::working_tree_diff(&repo)?;
+
+    let engine = PolicyEngine::from_config(&config.policy)?;
+    let annotated = engine.annotate(&diff.files, &session.mission);
+
+    // Build judge config with CLI overrides
+    let judge_config = build_judge_config(&config.judge, provider, model, endpoint);
+
+    p.hint(&format!(
+        "Using {} / {}",
+        match judge_config.provider {
+            JudgeProvider::Ollama => "ollama",
+            JudgeProvider::Claude => "claude",
+            JudgeProvider::Openai => "openai",
+            JudgeProvider::None => "none",
+        },
+        judge_config.model,
+    ));
+
+    let result = judge::evaluate(&session.mission, &annotated, &judge_config).await?;
+
+    if json {
+        let j = serde_json::json!({
+            "confidence": result.confidence,
+            "verdict": result.verdict.label(),
+            "reasoning": result.reasoning,
+            "provider": result.provider,
+            "model": result.model,
+        });
+        println!("{}", serde_json::to_string_pretty(&j)?);
+    } else {
+        p.print_judge_result(&result);
+    }
+
+    Ok(())
+}
+
+/// Build a JudgeConfig with CLI overrides applied on top of the config file defaults
+fn build_judge_config(
+    base: &JudgeConfig,
+    provider: Option<JudgeProviderArg>,
+    model: Option<String>,
+    endpoint: Option<String>,
+) -> JudgeConfig {
+    let mut cfg = base.clone();
+
+    if let Some(p) = provider {
+        cfg.provider = match p {
+            JudgeProviderArg::Ollama => JudgeProvider::Ollama,
+            JudgeProviderArg::Claude => JudgeProvider::Claude,
+            JudgeProviderArg::Openai => JudgeProvider::Openai,
+        };
+    }
+
+    if let Some(m) = model {
+        cfg.model = m;
+    }
+
+    if let Some(e) = endpoint {
+        cfg.endpoint = e;
+    }
+
+    cfg.enabled = true; // always enabled when user explicitly runs judge
+    cfg
+}
+
+// ── report ────────────────────────────────────────────────────────────────────
+
+pub async fn report(markdown: bool) -> Result<()> {
+    let p = Printer::new();
+    let config = config::load_or_default();
+    let session = load_active_session()?;
+
+    let repo = git::open_repo()?;
+    let diff = git::working_tree_diff(&repo)?;
+
+    let engine = PolicyEngine::from_config(&config.policy)?;
+    let annotated = engine.annotate(&diff.files, &session.mission);
+    let limit_warnings = engine.check_limits(diff.files.len(), diff.total_lines_changed());
+
+    // Run judge
+    let judge_result = if config.judge.enabled {
+        judge::evaluate(&session.mission, &annotated, &config.judge).await.ok()
+    } else {
+        None
+    };
+
+    let report = CheckReport {
+        session: session.clone(),
+        annotated,
+        limit_warnings,
+        judge_result,
+    };
+
+    if markdown {
+        println!("{}", report.to_markdown());
+    } else {
+        p.print_full_report(&report);
+    }
+
+    Ok(())
+}
+
+// ── diff (quick annotated view) ──────────────────────────────────────────────
+
+pub async fn diff(problems: bool) -> Result<()> {
+    let p = Printer::new();
+    let config = config::load_or_default();
+    let session = load_active_session()?;
+
+    let repo = git::open_repo()?;
+    let diff_result = git::working_tree_diff(&repo)?;
+
+    let engine = PolicyEngine::from_config(&config.policy)?;
+    let annotated = engine.annotate(&diff_result.files, &session.mission);
+
+    let filtered: Vec<_> = if problems {
+        annotated.iter().filter(|f| {
+            f.verdict.is_blocked() || f.verdict == crate::policy::FileVerdict::Unasked
+        }).collect()
+    } else {
+        annotated.iter().collect()
+    };
+
+    if filtered.is_empty() {
+        if problems {
+            p.success("No problems found — all changes are in scope");
+        } else {
+            p.hint("No changes detected in working tree");
+        }
+        return Ok(());
+    }
+
+    println!();
+    println!("  {} {} · {}",
+        console::style(&session.id[..8]).cyan(),
+        console::style("·").dim(),
+        console::style(&session.mission).white(),
+    );
+    println!();
+
+    for file in &filtered {
+        p.print_file_row_public(file);
+    }
+
+    println!();
+
+    let total_add: usize = filtered.iter().map(|f| f.diff.additions).sum();
+    let total_del: usize = filtered.iter().map(|f| f.diff.deletions).sum();
+    let blocked = filtered.iter().filter(|f| f.verdict.is_blocked()).count();
+    let unasked = filtered.iter().filter(|f| f.verdict == crate::policy::FileVerdict::Unasked).count();
+    let in_scope = filtered.iter().filter(|f| f.verdict == crate::policy::FileVerdict::InScope).count();
+
+    println!("  {} files  {}  {}  {}  {}",
+        filtered.len(),
+        console::style(format!("+{}", total_add)).green(),
+        console::style(format!("-{}", total_del)).red(),
+        console::style("·").dim(),
+        if blocked > 0 {
+            console::style(format!("{} blocked", blocked)).red().bold().to_string()
+        } else if unasked > 0 {
+            console::style(format!("{} unasked", unasked)).yellow().to_string()
+        } else {
+            console::style(format!("{} in scope", in_scope)).green().to_string()
+        },
+    );
+    println!();
 
     Ok(())
 }
