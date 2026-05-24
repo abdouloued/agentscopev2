@@ -8,6 +8,7 @@ mod output;
 mod tui;
 mod audit;
 mod hooks;
+mod models;
 
 use anyhow::Result;
 use clap::Parser;
@@ -34,6 +35,28 @@ async fn main() -> Result<()> {
         }
         Commands::Judge { provider, model, endpoint, json } => {
             session::judge(provider, model, endpoint, json).await
+        }
+        Commands::Model { action } => {
+            match action {
+                cli::ModelAction::List => models::list_models().await,
+                cli::ModelAction::Set { model, provider, endpoint } => {
+                    models::set_model(model, provider, endpoint).await
+                }
+                cli::ModelAction::Test { model } => models::test_model(model).await,
+                cli::ModelAction::Pull { model } => models::pull_model(model).await,
+            }
+        }
+        Commands::Config { action } => {
+            match action {
+                cli::ConfigAction::Show => models::config_show().await,
+                cli::ConfigAction::Set { key, value } => models::config_set(key, value).await,
+                cli::ConfigAction::Edit => models::config_edit().await,
+                cli::ConfigAction::Reset { preset } => models::config_reset(preset).await,
+                cli::ConfigAction::Path => {
+                    println!("  {}", config::CONFIG_FILE);
+                    Ok(())
+                }
+            }
         }
         Commands::Report { markdown } => {
             session::report(markdown).await

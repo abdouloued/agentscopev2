@@ -6,7 +6,7 @@ use clap::{Parser, Subcommand, ValueEnum};
     version,
     about = "Did your AI agent do only what you asked?",
     long_about = "AgentScope is a scope firewall and audit layer for AI coding agents.\nIt records your mission, watches what the agent actually changes,\nand blocks policy violations before they reach git.",
-    after_help = "EXAMPLES:\n  agentscope start \"Fix the rate-limit bug in api/middleware.ts\"\n  agentscope check\n  agentscope judge --model qwen3.5:2b\n  agentscope judge --provider claude --model claude-sonnet-4-20250514\n  agentscope report\n  agentscope diff --problems\n  agentscope hook install\n  agentscope audit last-5\n  agentscope use claude\n",
+    after_help = "EXAMPLES:\n  agentscope start \"Fix the rate-limit bug in api/middleware.ts\"\n  agentscope check\n  agentscope judge -m qwen3.5:2b\n  agentscope model list\n  agentscope model set llama3\n  agentscope config show\n  agentscope config set model qwen3.5:2b\n  agentscope report\n  agentscope diff --problems\n  agentscope hook install\n  agentscope audit last-5\n  agentscope use claude\n",
     styles = clap_styles(),
 )]
 pub struct Cli {
@@ -65,6 +65,19 @@ pub enum Commands {
         json: bool,
     },
 
+    /// Manage LLM models — list, set, test, pull
+    #[command(alias = "models")]
+    Model {
+        #[command(subcommand)]
+        action: ModelAction,
+    },
+
+    /// View and edit agentscope configuration
+    Config {
+        #[command(subcommand)]
+        action: ConfigAction,
+    },
+
     /// Generate a detailed session report (terminal or markdown)
     Report {
         /// Output as Markdown (for sharing in PRs)
@@ -117,6 +130,73 @@ pub enum Commands {
     Status,
 }
 
+// ── Model subcommands ────────────────────────────────────────────────────────
+
+#[derive(Subcommand, Clone, Debug)]
+pub enum ModelAction {
+    /// List available Ollama models and cloud providers
+    #[command(alias = "ls")]
+    List,
+
+    /// Set the default judge model
+    Set {
+        /// Model name (e.g. qwen3.5:2b, llama3, gemma4:e2b)
+        model: String,
+
+        /// Provider to use
+        #[arg(short, long, value_enum)]
+        provider: Option<JudgeProviderArg>,
+
+        /// Custom endpoint
+        #[arg(long)]
+        endpoint: Option<String>,
+    },
+
+    /// Test a model with a simple prompt
+    Test {
+        /// Model to test (defaults to current default)
+        model: Option<String>,
+    },
+
+    /// Pull/download a model from Ollama
+    Pull {
+        /// Model to pull (e.g. llama3, qwen3.5:2b)
+        model: String,
+    },
+}
+
+// ── Config subcommands ──────────────────────────────────────────────────────
+
+#[derive(Subcommand, Clone, Debug)]
+pub enum ConfigAction {
+    /// Show current configuration
+    Show,
+
+    /// Set a config value (e.g. agentscope config set model qwen3.5:2b)
+    Set {
+        /// Config key (model, provider, endpoint, max_files, max_lines, judge.enabled, team.enabled)
+        key: String,
+
+        /// Value to set
+        value: String,
+    },
+
+    /// Open agentscope.yaml in your $EDITOR
+    Edit,
+
+    /// Reset config to a preset
+    Reset {
+        /// Preset to reset to
+        #[arg(value_enum, default_value = "solo")]
+        preset: Preset,
+    },
+
+    /// Show the config file path
+    Path,
+}
+
+// ── Hook subcommands ────────────────────────────────────────────────────────
+
 #[derive(Subcommand, Clone, Debug)]
 pub enum HookAction {
     /// Install a pre-commit hook that runs `agentscope check`
@@ -127,7 +207,7 @@ pub enum HookAction {
     Status,
 }
 
-/// Provider argument for the judge command (maps to config::JudgeProvider)
+/// Provider argument for judge/model commands
 #[derive(ValueEnum, Clone, Debug)]
 pub enum JudgeProviderArg {
     /// Local Ollama (default)
