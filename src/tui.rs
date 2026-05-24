@@ -12,7 +12,7 @@ use ratatui::{
     widgets::{Block, Borders, List, ListItem, Paragraph},
     Frame, Terminal,
 };
-use std::{io, time::Duration};
+use std::{io, time::{Duration, Instant}};
 
 use crate::config;
 use crate::git;
@@ -35,6 +35,9 @@ const CLR_CYAN:      Color = Color::Rgb(103, 232, 249); // #67e8f9
 const CLR_BLUE:      Color = Color::Rgb(96, 165, 250);  // #60a5fa
 const CLR_PURPLE:    Color = Color::Rgb(192, 132, 252); // #c084fc
 
+/// Polling interval — 150ms is snappy without thrashing CPU
+const POLL_MS: u64 = 150;
+
 pub async fn run_watch() -> Result<()> {
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -55,10 +58,39 @@ pub async fn run_watch() -> Result<()> {
     result
 }
 
+/// TUI state for flash messages and refresh counter
+struct WatchState {
+    flash: Option<(String, Instant)>,
+    refresh_count: u64,
+}
+
+impl WatchState {
+    fn new() -> Self {
+        Self {
+            flash: None,
+            refresh_count: 0,
+        }
+    }
+
+    fn set_flash(&mut self, msg: &str) {
+        self.flash = Some((msg.to_string(), Instant::now()));
+    }
+
+    fn active_flash(&self) -> Option<&str> {
+        match &self.flash {
+            Some((msg, when)) if when.elapsed() < Duration::from_secs(2) => Some(msg),
+            _ => None,
+        }
+    }
+}
+
 async fn run_app<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>) -> Result<()> {
     let config = config::load_or_default();
+    let mut state = WatchState::new();
 
     loop {
+        state.refresh_count += 1;
+
         // Refresh data each frame
         let session = load_active_session().ok();
         let files = if let Some(ref s) = session {
@@ -77,13 +109,27 @@ async fn run_app<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>) -> Re
             None
         };
 
-        terminal.draw(|f| ui(f, session.as_ref(), files.as_deref()))?;
+        terminal.draw(|f| ui(f, session.as_ref(), files.as_deref(), &state))?;
 
-        if event::poll(Duration::from_millis(500))? {
+        if event::poll(Duration::from_millis(POLL_MS))? {
             if let Event::Key(key) = event::read()? {
                 match (key.code, key.modifiers) {
+                    // Quit
                     (KeyCode::Char('q'), _)
+                    | (KeyCode::Esc, _)
                     | (KeyCode::Char('c'), KeyModifiers::CONTROL) => break,
+                    // Force refresh (visual confirmation)
+                    (KeyCode::Char('r'), _) => {
+                        state.set_flash("⟳ refreshed");
+                    }
+                    // Check hint
+                    (KeyCode::Char('c'), _) => {
+                        state.set_flash("→ run `agentscope check` in another terminal");
+                    }
+                    // Help
+                    (KeyCode::Char('?') | KeyCode::Char('h'), _) => {
+                        state.set_flash("r=refresh  c=check  q/esc=quit  ?=help");
+                    }
                     _ => {}
                 }
             }
@@ -93,7 +139,12 @@ async fn run_app<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>) -> Re
     Ok(())
 }
 
-fn ui(f: &mut Frame, session: Option<&crate::session::Session>, files: Option<&[crate::policy::AnnotatedFile]>) {
+fn ui(
+    f: &mut Frame,
+    session: Option<&crate::session::Session>,
+    files: Option<&[crate::policy::AnnotatedFile]>,
+    state: &WatchState,
+) {
     let area = f.area();
 
     // Background
@@ -105,14 +156,14 @@ fn ui(f: &mut Frame, session: Option<&crate::session::Session>, files: Option<&[
         .margin(1)
         .constraints([
             Constraint::Length(3),  // header
-            Constraint::Min(10),    // file list
-            Constraint::Length(3),  // summary bar
+            Constraint::Min(10),   // file list
+            Constraint::Length(3), // summary bar
         ])
         .split(area);
 
     render_header(f, layout[0], session);
     render_file_list(f, layout[1], files);
-    render_summary_bar(f, layout[2], files);
+    render_summary_bar(f, layout[2], files, state);
 }
 
 fn render_header(f: &mut Frame, area: Rect, session: Option<&crate::session::Session>) {
@@ -121,13 +172,13 @@ fn render_header(f: &mut Frame, area: Rect, session: Option<&crate::session::Ses
         .border_style(Style::default().fg(CLR_BORDER));
 
     let content = if let Some(s) = session {
+        let id_short = if s.id.len() >= 12 { &s.id[..12] } else { &s.id };
         Line::from(vec![
             Span::styled("agentscope  ", Style::default().fg(CLR_PURPLE).add_modifier(Modifier::BOLD)),
             Span::styled("watch  ", Style::default().fg(CLR_DIM)),
-            Span::styled(&s.id[..12], Style::default().fg(CLR_CYAN)),
+            Span::styled(id_short, Style::default().fg(CLR_CYAN)),
             Span::styled("  ·  ", Style::default().fg(CLR_DIM)),
             Span::styled(&s.mission, Style::default().fg(CLR_WHITE)),
-            Span::styled("  (q to quit)", Style::default().fg(CLR_DIM)),
         ])
     } else {
         Line::from(vec![
@@ -156,10 +207,19 @@ fn render_file_list(f: &mut Frame, area: Rect, files: Option<&[crate::policy::An
             ListItem::new(Line::from(Span::styled(
                 "  no changes yet",
                 Style::default().fg(CLR_DIM),
-            )))
+            ))),
+            ListItem::new(Line::from(Span::styled(
+                "  watching all files in working tree vs HEAD",
+                Style::default().fg(CLR_MUTED).add_modifier(Modifier::ITALIC),
+            ))),
+            ListItem::new(Line::from(Span::raw(""))),
+            ListItem::new(Line::from(Span::styled(
+                "  tip: changes will appear here as soon as any file is modified",
+                Style::default().fg(CLR_MUTED),
+            ))),
         ],
-        Some(files) => files.iter().map(|f| {
-            let (tag, tag_color, path_color) = match &f.verdict {
+        Some(files) => files.iter().map(|af| {
+            let (tag, tag_color, path_color) = match &af.verdict {
                 FileVerdict::InScope =>
                     ("  IN SCOPE ", CLR_GREEN, CLR_BLUE),
                 FileVerdict::Unasked =>
@@ -172,15 +232,15 @@ fn render_file_list(f: &mut Frame, area: Rect, files: Option<&[crate::policy::An
 
             let stats = format!(
                 "  +{} −{}",
-                f.diff.additions,
-                f.diff.deletions,
+                af.diff.additions,
+                af.diff.deletions,
             );
 
             let line = Line::from(vec![
                 Span::styled(tag, Style::default().fg(tag_color).add_modifier(Modifier::BOLD)),
                 Span::raw("  "),
                 Span::styled(
-                    f.diff.path.display().to_string(),
+                    af.diff.path.display().to_string(),
                     Style::default().fg(path_color),
                 ),
                 Span::styled(stats, Style::default().fg(CLR_DIM)),
@@ -194,16 +254,30 @@ fn render_file_list(f: &mut Frame, area: Rect, files: Option<&[crate::policy::An
     f.render_widget(list, area);
 }
 
-fn render_summary_bar(f: &mut Frame, area: Rect, files: Option<&[crate::policy::AnnotatedFile]>) {
+fn render_summary_bar(
+    f: &mut Frame,
+    area: Rect,
+    files: Option<&[crate::policy::AnnotatedFile]>,
+    state: &WatchState,
+) {
     let block = Block::default()
         .borders(Borders::TOP)
         .border_style(Style::default().fg(CLR_BORDER))
         .style(Style::default().bg(CLR_BG));
 
-    let line = if let Some(files) = files {
+    let line = if let Some(flash) = state.active_flash() {
+        // Show flash message (green, fades after 2s)
+        Line::from(Span::styled(
+            format!("  {}", flash),
+            Style::default().fg(CLR_GREEN).add_modifier(Modifier::BOLD),
+        ))
+    } else if let Some(files) = files {
         let in_scope = files.iter().filter(|f| f.verdict == FileVerdict::InScope).count();
         let unasked = files.iter().filter(|f| f.verdict == FileVerdict::Unasked).count();
         let blocked = files.iter().filter(|f| f.verdict.is_blocked()).count();
+
+        // Pulse indicator — blinks to show the TUI is alive
+        let pulse = if state.refresh_count % 4 < 2 { "●" } else { "○" };
 
         Line::from(vec![
             Span::styled(format!("  {} in scope", in_scope), Style::default().fg(CLR_GREEN)),
@@ -212,12 +286,15 @@ fn render_summary_bar(f: &mut Frame, area: Rect, files: Option<&[crate::policy::
             Span::styled("  ·  ", Style::default().fg(CLR_DIM)),
             Span::styled(format!("{} blocked", blocked), Style::default().fg(CLR_RED)),
             Span::styled(
-                "    refreshing every 500ms",
+                format!("    {} live  r=refresh  q=quit  ?=help", pulse),
                 Style::default().fg(CLR_DIM),
             ),
         ])
     } else {
-        Line::from(Span::styled("  no session", Style::default().fg(CLR_DIM)))
+        Line::from(Span::styled(
+            "  no session    q=quit  ?=help",
+            Style::default().fg(CLR_DIM),
+        ))
     };
 
     let para = Paragraph::new(line).block(block);
