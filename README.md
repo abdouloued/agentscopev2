@@ -1,321 +1,346 @@
-# 🛡️ AgentScope
+# AgentScope
 
-<div align="center">
+AgentScope is a Rust CLI that keeps AI coding agents accountable to the work you actually asked for.
 
-**Your AI agent did exactly what you asked. AgentScope proves it.**
+It records or detects a mission, watches Git changes, applies deterministic policy, and optionally asks a judge model whether the diff still matches the mission.
 
-[![Rust](https://img.shields.io/badge/rust-1.75+-orange.svg?style=flat-square&logo=rust)](https://www.rust-lang.org)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](LICENSE)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](CONTRIBUTING.md)
+AgentScope does not replace Codex, Claude Code, Cursor, Gemini CLI, OpenCode, or Copilot. It sits beside them as a repo safety layer.
 
-*Scope firewall and audit layer for AI coding agents.*
-*Works with Claude Code, Codex, Cursor, Gemini CLI, OpenCode, Hermes, and more.*
-
-</div>
-
----
-
-```
-You gave Claude Code write access to your repo.
-It fixed the bug. It also rewrote your auth module.
-AgentScope tells you — before you commit.
-```
-
----
-
-## The Problem
-
-You run an AI coding agent. You ask it to "fix the rate-limit bug." It does that.
-It also quietly rewrites your authentication module, modifies `.env`, and touches 14 other files.
-
-You don't notice until production breaks.
-
-## The Solution
+## The 30-second version
 
 ```bash
+agentscope init
+agentscope start "Fix checkout button loading state" --agent codex
+
+# Run your coding agent normally.
+
+agentscope watch
 agentscope check
 ```
 
-```
-  session  01KSDYJN1V3X  ·  claude-code
-  mission  "Fix the rate-limit bug in api/middleware.ts"
-
-  ──────────────────────────────────────────────────────
-  scanning working tree against git baseline...
-
-  IN SCOPE   src/api/middleware.ts        +47 −12
-  IN SCOPE   src/api/middleware.test.ts   +31 −0
-  UNASKED    src/api/router.ts            +18 −3
-  UNASKED    src/lib/ratelimit.ts         +62 −0
-  BLOCKED    src/auth/session.ts          +9 −41
-  BLOCKED    .env.local                   +2 −0
-  CLEAN      14 other files unchanged
-
-  ──────────────────────────────────────────────────────
-
-  ╔═══════════════════════════════════════════╗
-  ║  BLOCK — session halted                   ║
-  ║  2 violations of declared scope policy    ║
-  ╚═══════════════════════════════════════════╝
-
-    ✕  src/auth/session.ts  — auth files are protected
-    ✕  .env.local           — env files always blocked
-
-  LLM judge  (ollama / qwen3.5:2b)
-
-    DRIFT DETECTED  —  38% confidence changes match mission
-    "The agent addressed rate-limiting but made unexplained changes
-     to authentication logic unrelated to the reported bug."
-
-  2 in scope  ·  2 unasked  ·  2 blocked
-```
-
-AgentScope is **not another AI coding agent**. It is the **safety layer** that watches all of them.
-
----
-
-## ⚡ Install
+If you are already inside a supported agent session, let AgentScope infer the mission from local agent logs:
 
 ```bash
-cargo install agentscope
+agentscope agents detect
+agentscope attach --agent auto
+agentscope attach --agent auto --apply
+agentscope monitor --agent auto
 ```
 
-Or build from source:
+Safe default: `attach` is a dry run. It prints the inferred mission, source path, and confidence. It writes `.agentscope/session.json` only with `--apply`.
+
+## What it checks
+
+```text
+IN SCOPE   src/components/CheckoutButton.tsx   +28 -4
+UNASKED    package.json                         +2 -2
+BLOCKED    .env.local                           +1 -0
+
+BLOCK .env.local matched blocked path policy
+JUDGE ollama / qwen3.5:2b
+DRIFT DETECTED - review unasked files before commit
+```
+
+AgentScope has two layers:
+
+| Layer | Purpose |
+|---|---|
+| Git and policy | Deterministic checks for changed files, blocked paths, warn paths, and size limits. |
+| Mission context | Manual mission from `agentscope start`, or inferred mission from supported local agent logs. |
+| Judge | Optional model-based drift review through Ollama, Claude, or OpenAI. |
+
+Deterministic policy wins. A model can help explain drift, but it cannot make `.env` or protected auth paths safe.
+
+## Install
+
+Build from source:
 
 ```bash
-git clone https://github.com/abdouloued/agentscopev2
+git clone git@github.com:abdouloued/agentscopev2.git
 cd agentscopev2
 cargo build --release
 cp target/release/agentscope ~/.local/bin/
 ```
 
-## 🚀 Quick Start
+For local development:
 
 ```bash
-# 1. Initialize in your repo
+cargo build
+cargo test
+./target/debug/agentscope --help
+```
+
+## Core workflow
+
+### 1. Initialize once per repo
+
+```bash
 agentscope init
-
-# 2. Tell it what you're asking the agent to do
-agentscope start "Fix the rate-limit bug in api/middleware.ts"
-
-# 3. Run your agent as normal
-#    Claude Code, Codex, Cursor, Gemini CLI — any of them
-
-# 4. Check what it actually did
-agentscope check
 ```
 
-That's it. Exit code `0` = clean. Exit code `1` = blocked files found.
+This creates:
 
----
-
-## 📋 Commands
-
-| Command | What it does |
-|---|---|
-| `agentscope init` | Create `agentscope.yaml` in current repo |
-| `agentscope start "mission"` | Begin a session with a stated mission |
-| `agentscope check` | Check current changes against mission + policy |
-| `agentscope check --json` | Machine-readable output for CI pipelines |
-| `agentscope audit last-5` | Review the last 5 sessions |
-| `agentscope watch` | Live TUI dashboard — see changes in real time |
-| `agentscope use claude` | Write agent integration file |
-| `agentscope status` | One-line current session summary |
-
----
-
-## 🤖 Supported Agents
-
-AgentScope works with **any agent that writes to your filesystem**. First-class integrations:
-
-| Agent | Launch command | Integration |
-|---|---|---|
-| **Claude Code** | `ollama launch claude --model qwen3.5` | `agentscope use claude` |
-| **Codex** | `ollama launch codex --model qwen3.5` | `agentscope use codex` |
-| **Codex App** | `ollama launch codex-app --model qwen3.5` | `agentscope use codex-app` |
-| **Cursor** | *Open in Cursor IDE* | `agentscope use cursor` |
-| **Gemini CLI** | *Run gemini in terminal* | `agentscope use gemini` |
-| **OpenCode** | `ollama launch opencode --model qwen3.5` | `agentscope use opencode` |
-| **OpenClaw** | `ollama launch openclaw --model qwen3.5` | `agentscope use openclaw` |
-| **Hermes Agent** | `ollama launch hermes --model qwen3.5` | `agentscope use hermes` |
-| **Copilot CLI** | *Run copilot in terminal* | `agentscope use copilot` |
-| **Droid** | `ollama launch droid --model qwen3.5` | `agentscope use droid` |
-| **Custom** | *Any agent* | `agentscope use custom` |
-
----
-
-## 🔒 Policy
-
-Edit `agentscope.yaml` to define what's **never allowed**:
-
-```yaml
-policy:
-  blocked:
-    - ".env*"
-    - "src/auth/**"
-    - "**/migrations/**"
-    - "**/*.pem"
-    - "**/*.key"
-  warn:
-    - "package-lock.json"
-    - "yarn.lock"
-    - "Cargo.lock"
-  max_files_changed: 20
+```text
+agentscope.yaml
+.agentscope/
 ```
 
-- **Blocked** paths → `agentscope check` exits with code `1`. Deterministic. No AI judgment.
-- **Warn** paths → printed as warnings, don't block.
-- **Limits** → flag sessions where the agent changed too many files.
-
----
-
-## 🧠 LLM Judge
-
-AgentScope optionally asks a **local LLM** whether the changes match your mission.
-No data leaves your machine.
-
-```yaml
-judge:
-  enabled: true
-  provider: ollama        # ollama | claude | openai | none
-  model: "qwen3.5:2b"
-  endpoint: "http://localhost:11434"
-```
-
-Requires [Ollama](https://ollama.ai) running locally.
+### 2. Start a mission manually
 
 ```bash
-# Pull the default judge model
-ollama pull qwen3.5:2b
+agentscope start "Fix the rate-limit bug in api/middleware.ts" --agent codex
 ```
 
-Supported providers:
+This records:
 
-| Provider | Model | Privacy |
-|---|---|---|
-| **Ollama** (default) | `qwen3.5:2b`, `gemma4:e2b`, any | 🟢 100% local |
-| **Claude** | `claude-haiku-4-5` | 🟡 Cloud API |
-| **OpenAI** | `gpt-4o-mini` | 🟡 Cloud API |
+| Field | Meaning |
+|---|---|
+| mission | The work the agent is supposed to do. |
+| agent | A label for the tool doing the work. |
+| git baseline | The commit AgentScope diffs against. |
+| started_at | Session timestamp. |
 
----
+### 3. Or attach to the current agent context
 
-## 📺 Live Watch Mode
+```bash
+agentscope agents detect
+agentscope agents doctor
+agentscope agents context --agent codex
+agentscope attach --agent auto
+agentscope attach --agent auto --apply
+```
+
+AgentScope reads local logs best-effort. Missing sources are normal: they usually mean that agent is not installed, has not created logs yet, or stores logs somewhere custom.
+
+Use `agentscope agents doctor` when detection looks wrong. It shows the paths checked and the fallback command:
+
+```bash
+agentscope start "your mission"
+```
+
+### 4. Watch while the agent works
 
 ```bash
 agentscope watch
 ```
 
-Opens a **live TUI dashboard** that refreshes every 500ms. See exactly what your agent is touching in real time — before you commit anything.
-
-The dashboard shows:
-- Session info (ID, agent, mission)
-- Every changed file with its verdict (IN SCOPE / UNASKED / BLOCKED)
-- Live diff stats (+lines / −lines)
-- Summary counts
-
-Press `q` or `Ctrl+C` to exit.
-
----
-
-## 🏗️ CI / CD Integration
+`watch` shows the active session from `.agentscope/session.json`.
 
 ```bash
-# In your CI pipeline:
-agentscope check --json | jq '.blocked'
-
-# Or just use the exit code:
-agentscope check || echo "Agent touched blocked files — review required"
+agentscope monitor --agent auto
 ```
+
+`monitor` first tries to infer the current agent mission, optionally auto-attaches high-confidence missions, then opens the live TUI.
+
+### 5. Check before commit
+
+```bash
+agentscope diff --problems
+agentscope check
+agentscope check --json
+```
+
+Exit code `0` means no blocked files were found. Exit code `1` means AgentScope found a policy violation.
+
+## Agent-aware monitoring
+
+Supported local context readers:
+
+| Agent | Default local source |
+|---|---|
+| Claude Code | `~/.claude/projects/**/{*.jsonl,*.json,*.txt,*.md}` |
+| Codex CLI / Codex app | `~/.codex/sessions/**/rollout-*.jsonl` and related session files |
+| OpenCode | `~/.local/share/opencode/project/**/storage/` |
+| Cursor | `~/.cursor/projects/**/agent-transcripts/` |
+| Gemini CLI | `~/.gemini/tmp/**/chats/` plus nearby JSON logs |
+| Copilot CLI | `~/.copilot/session-state/` |
+
+Detection is local-only. AgentScope does not upload transcripts. It extracts the latest usable user task, filters out tool calls, patch hunks, metadata, login commands, and app wrapper text, then returns a confidence score.
+
+Override paths in `agentscope.yaml` when an agent stores logs somewhere else:
 
 ```yaml
-# GitHub Actions example
-- name: Audit agent changes
-  run: |
-    agentscope check --json > report.json
-    if [ $? -ne 0 ]; then
-      echo "::error::AgentScope detected blocked file modifications"
-      cat report.json | jq '.files[] | select(.verdict == "BLOCKED")'
-      exit 1
-    fi
+agents:
+  auto_detect: true
+  auto_attach: false
+  preferred:
+    - codex
+    - claude-code
+    - cursor
+  sources:
+    codex:
+      enabled: true
+      paths:
+        - "~/.codex/sessions"
+        - "~/Library/Application Support/Codex/sessions"
+    gemini-cli:
+      enabled: false
 ```
 
----
+Product-ready rule: use automatic detection to reduce typing, not to hide uncertainty. Low-confidence missions do not auto-attach.
 
-## 🧩 How It Works
+## Commands
 
-```
-┌──────────────────────────────────────────────────────┐
-│  agentscope start "Fix the bug in middleware.ts"     │
-│  ↓                                                    │
-│  Records: mission, git baseline (HEAD SHA), agent    │
-│  Writes: .agentscope/session.json                    │
-└──────────────────────────────────────────────────────┘
-          │
-          ▼  (you run your AI agent normally)
-          │
-┌──────────────────────────────────────────────────────┐
-│  agentscope check                                     │
-│  ↓                                                    │
-│  1. Git diff: working tree vs baseline                │
-│  2. Policy engine: glob match → BLOCKED / WARN        │
-│  3. Scope hints: mission text → file path matching    │
-│  4. LLM judge: "do changes match the mission?"        │
-│  ↓                                                    │
-│  Output: IN SCOPE / UNASKED / BLOCKED per file        │
-│  Exit code: 0 (clean) or 1 (blocked files found)      │
-└──────────────────────────────────────────────────────┘
-```
-
----
-
-## 💡 Philosophy
-
-| Principle | What it means |
+| Command | What it does |
 |---|---|
-| **Deterministic first** | Blocked paths use glob matching, not AI. No false negatives on `.env`. |
-| **Agent-agnostic** | Works with any agent that writes files. Not tied to any vendor. |
-| **Privacy-first** | LLM judge runs locally via Ollama by default. Nothing leaves your machine. |
-| **Git-native** | Diffs against your git baseline. No proprietary snapshots. |
-| **Zero config** | `agentscope init` + `agentscope start` — that's all you need. |
+| `agentscope init` | Create `agentscope.yaml` and local session storage. |
+| `agentscope start "mission" --agent codex` | Start a manual mission. |
+| `agentscope agents detect` | Show supported agents and detected missions. |
+| `agentscope agents doctor` | Explain missing sources and checked paths. |
+| `agentscope agents context --agent auto` | Print one inferred context in detail. |
+| `agentscope attach --agent auto` | Dry-run mission inference. |
+| `agentscope attach --agent auto --apply` | Write inferred mission to `.agentscope/session.json`. |
+| `agentscope watch` | Live TUI for the active manual or attached session. |
+| `agentscope monitor --agent auto` | Detect context, optionally attach, then watch. |
+| `agentscope diff --problems` | Show only unasked and blocked changed files. |
+| `agentscope check` | Enforce policy and scope checks. |
+| `agentscope judge -m qwen3.5:2b` | Run optional LLM drift review. |
+| `agentscope model list` | List judge models/providers. |
+| `agentscope config show` | Print effective config. |
+| `agentscope hook install` | Install a pre-commit safety hook. |
+| `agentscope report --markdown` | Generate a shareable report. |
+| `agentscope mcp` | Expose JSON-RPC style tools for compatible agents. |
+| `agentscope skills install --agent all` | Generate project-local instruction files. |
+| `agentscope plugins install --agent all` | Generate project-local plugin assets. |
 
----
+## MCP, skills, and plugins
 
-## 🛠️ Development
+`agentscope mcp` exposes these JSON methods:
+
+| Method | Purpose |
+|---|---|
+| `scope_status` | Return the active session if one exists. |
+| `scope_check` | Point compatible tools to the terminal check path. |
+| `scope_start` | Point compatible tools to session creation. |
+| `agent_detect` | Return all supported agent detections. |
+| `agent_context` | Return one agent context. |
+| `agent_attach` | Point compatible tools to safe attach behavior. |
+
+Skills and plugins are generated local assets. They are not a marketplace integration and do not install native Stop hooks. They give agents and projects clear instructions for when to run AgentScope.
 
 ```bash
-# Clone
-git clone https://github.com/abdouloued/agentscopev2
-cd agentscopev2
-
-# Build
-cargo build
-
-# Run tests
-cargo test
-
-# Run with debug logging
-RUST_LOG=debug cargo run -- check
-
-# Release build (optimized + stripped)
-cargo build --release
+agentscope skills list --agent all
+agentscope skills install --agent codex
+agentscope plugins install --agent all
 ```
 
----
+## Policy
 
-## Contributing
+Edit `agentscope.yaml`:
 
-We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+```yaml
+policy:
+  blocked:
+    - ".env"
+    - ".env.*"
+    - "**/.env"
+    - "**/.env.*"
+    - "**/secrets/**"
+    - "**/*.pem"
+    - "**/*.key"
+    - "src/auth/**"
+    - "**/migrations/**"
+  warn:
+    - "package-lock.json"
+    - "yarn.lock"
+    - "Cargo.lock"
+    - "**/config/**"
+  max_files_changed: 20
+  max_lines_changed: 800
+```
+
+## Judge
+
+The default judge provider is Ollama with `qwen3.5:2b`:
+
+```bash
+ollama pull qwen3.5:2b
+agentscope judge -m qwen3.5:2b
+```
+
+Config:
+
+```yaml
+judge:
+  enabled: true
+  provider: ollama
+  model: "qwen3.5:2b"
+  endpoint: "http://localhost:11434"
+```
+
+Supported providers:
+
+| Provider | Notes |
+|---|---|
+| Ollama | Local by default. |
+| Claude | Cloud API provider. |
+| OpenAI | Cloud API provider. |
+| None | Disable judge and use deterministic policy only. |
+
+## CI
+
+```bash
+agentscope check --json > agentscope-report.json
+agentscope check
+```
+
+GitHub Actions example:
+
+```yaml
+- name: Audit agent changes
+  run: |
+    agentscope check --json > agentscope-report.json
+    agentscope check
+```
+
+## Troubleshooting
+
+### `watch` keeps showing the old mission
+
+`agentscope watch` uses the active `.agentscope/session.json`. Update it with one of:
+
+```bash
+agentscope start "new mission" --agent codex
+agentscope attach --agent auto --apply
+```
+
+### Agent detection says `not found`
+
+Run:
+
+```bash
+agentscope agents doctor
+```
+
+Then either:
+
+| Situation | Fix |
+|---|---|
+| Agent has no logs yet | Run the agent once, then detect again. |
+| Agent stores logs elsewhere | Add `agents.sources.<agent>.paths` in `agentscope.yaml`. |
+| Detection confidence is low | Use manual `agentscope start "mission"`. |
+| Multiple agents are present | Reorder `agents.preferred`. |
+
+### The inferred mission is wrong
+
+Use manual start for that session:
+
+```bash
+agentscope start "exact mission here" --agent codex
+```
+
+Then open an issue with a sanitized sample of the local log format so the reader can improve.
+
+## Development
+
+```bash
+cargo fmt
+cargo test
+cargo build
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for contributor workflow and project structure.
 
 ## License
 
-MIT — see [LICENSE](LICENSE)
-
----
-
-<div align="center">
-
-**Built with 🦀 Rust**
-
-*AgentScope doesn't replace your AI agent. It makes sure your AI agent only does what you asked.*
-
-</div>
+MIT. See [LICENSE](LICENSE).

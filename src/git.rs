@@ -49,7 +49,9 @@ pub fn open_repo() -> Result<Repository> {
 
 /// Capture the current HEAD commit SHA as a baseline
 pub fn capture_baseline(repo: &Repository) -> Result<String> {
-    let head = repo.head().context("No commits yet — make at least one commit first")?;
+    let head = repo
+        .head()
+        .context("No commits yet — make at least one commit first")?;
     let commit = head.peel_to_commit()?;
     Ok(commit.id().to_string())
 }

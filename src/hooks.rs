@@ -117,7 +117,8 @@ pub async fn status() -> Result<()> {
 
     let hook_path = Path::new(HOOK_PATH);
     if !hook_path.exists() {
-        println!("  {} pre-commit hook: {}", 
+        println!(
+            "  {} pre-commit hook: {}",
             console::style("○").dim(),
             console::style("not installed").dim(),
         );
@@ -127,14 +128,16 @@ pub async fn status() -> Result<()> {
 
     let contents = fs::read_to_string(hook_path)?;
     if contents.contains(HOOK_MARKER) {
-        println!("  {} pre-commit hook: {}", 
+        println!(
+            "  {} pre-commit hook: {}",
             console::style("●").green(),
             console::style("installed (AgentScope)").green().bold(),
         );
         p.hint("Every commit runs `agentscope check` automatically.");
         p.hint("Remove with: agentscope hook uninstall");
     } else {
-        println!("  {} pre-commit hook: {}", 
+        println!(
+            "  {} pre-commit hook: {}",
             console::style("●").yellow(),
             console::style("installed (third-party)").yellow(),
         );

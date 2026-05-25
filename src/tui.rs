@@ -12,7 +12,11 @@ use ratatui::{
     widgets::{Bar, BarChart, BarGroup, Block, Borders, List, ListItem, Paragraph},
     Frame, Terminal,
 };
-use std::{io, sync::{Arc, Mutex}, time::{Duration, Instant}};
+use std::{
+    io,
+    sync::{Arc, Mutex},
+    time::{Duration, Instant},
+};
 
 use crate::config;
 use crate::git;
@@ -22,19 +26,19 @@ use crate::session::load_active_session;
 
 // ── Theme constants ───────────────────────────────────────────────────────────
 
-const CLR_BG:        Color = Color::Rgb(14, 17, 23);
+const CLR_BG: Color = Color::Rgb(14, 17, 23);
 #[allow(dead_code)]
-const CLR_SURFACE:   Color = Color::Rgb(28, 31, 38);
-const CLR_BORDER:    Color = Color::Rgb(42, 45, 54);
-const CLR_DIM:       Color = Color::Rgb(74, 78, 92);
-const CLR_MUTED:     Color = Color::Rgb(107, 114, 128);
-const CLR_WHITE:     Color = Color::Rgb(226, 232, 240);
-const CLR_GREEN:     Color = Color::Rgb(74, 222, 128);
-const CLR_RED:       Color = Color::Rgb(248, 113, 113);
-const CLR_AMBER:     Color = Color::Rgb(251, 191, 36);
-const CLR_CYAN:      Color = Color::Rgb(103, 232, 249);
-const CLR_BLUE:      Color = Color::Rgb(96, 165, 250);
-const CLR_PURPLE:    Color = Color::Rgb(192, 132, 252);
+const CLR_SURFACE: Color = Color::Rgb(28, 31, 38);
+const CLR_BORDER: Color = Color::Rgb(42, 45, 54);
+const CLR_DIM: Color = Color::Rgb(74, 78, 92);
+const CLR_MUTED: Color = Color::Rgb(107, 114, 128);
+const CLR_WHITE: Color = Color::Rgb(226, 232, 240);
+const CLR_GREEN: Color = Color::Rgb(74, 222, 128);
+const CLR_RED: Color = Color::Rgb(248, 113, 113);
+const CLR_AMBER: Color = Color::Rgb(251, 191, 36);
+const CLR_CYAN: Color = Color::Rgb(103, 232, 249);
+const CLR_BLUE: Color = Color::Rgb(96, 165, 250);
+const CLR_PURPLE: Color = Color::Rgb(192, 132, 252);
 
 const POLL_MS: u64 = 150;
 
@@ -149,7 +153,10 @@ async fn run_app<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>) -> Re
 
         // Record line history for sparkline
         if let Some(ref f) = files {
-            let total: u64 = f.iter().map(|af| (af.diff.additions + af.diff.deletions) as u64).sum();
+            let total: u64 = f
+                .iter()
+                .map(|af| (af.diff.additions + af.diff.deletions) as u64)
+                .sum();
             state.record_lines(total);
         }
 
@@ -167,7 +174,11 @@ async fn run_app<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>) -> Re
                     }
                     (KeyCode::Char('d'), _) => {
                         state.show_dashboard = !state.show_dashboard;
-                        let msg = if state.show_dashboard { "dashboard on" } else { "dashboard off" };
+                        let msg = if state.show_dashboard {
+                            "dashboard on"
+                        } else {
+                            "dashboard off"
+                        };
                         state.set_flash(msg);
                     }
                     // Run judge inline
@@ -186,11 +197,9 @@ async fn run_app<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>) -> Re
                                 let judge_config = config.judge.clone();
 
                                 tokio::spawn(async move {
-                                    let result = crate::judge::evaluate(
-                                        &mission,
-                                        &annotated,
-                                        &judge_config,
-                                    ).await;
+                                    let result =
+                                        crate::judge::evaluate(&mission, &annotated, &judge_config)
+                                            .await;
 
                                     let mut status = judge_status.lock().unwrap();
                                     match result {
@@ -234,7 +243,7 @@ fn ui(
         .direction(Direction::Vertical)
         .margin(1)
         .constraints([
-            Constraint::Length(3),  // header
+            Constraint::Length(3), // header
             Constraint::Min(10),   // main
             Constraint::Length(3), // status bar
         ])
@@ -245,19 +254,13 @@ fn ui(
     if state.show_dashboard {
         let cols = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Percentage(50),
-                Constraint::Percentage(50),
-            ])
+            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
             .split(layout[1]);
 
         // Left: file list on top, bar chart on bottom
         let left_split = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Percentage(55),
-                Constraint::Percentage(45),
-            ])
+            .constraints([Constraint::Percentage(55), Constraint::Percentage(45)])
             .split(cols[0]);
 
         render_file_list(f, left_split[0], files);
@@ -267,8 +270,8 @@ fn ui(
         let right_split = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(7),   // pie chart
-                Constraint::Min(5),     // stats + judge
+                Constraint::Length(7), // pie chart
+                Constraint::Min(5),    // stats + judge
             ])
             .split(cols[1]);
 
@@ -291,7 +294,10 @@ fn render_header(f: &mut Frame, area: Rect, session: Option<&crate::session::Ses
     let content = if let Some(s) = session {
         let id_short = if s.id.len() >= 12 { &s.id[..12] } else { &s.id };
         Line::from(vec![
-            Span::styled("agentscope  ", Style::default().fg(CLR_PURPLE).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "agentscope  ",
+                Style::default().fg(CLR_PURPLE).add_modifier(Modifier::BOLD),
+            ),
             Span::styled("watch  ", Style::default().fg(CLR_DIM)),
             Span::styled(id_short, Style::default().fg(CLR_CYAN)),
             Span::styled("  ·  ", Style::default().fg(CLR_DIM)),
@@ -299,8 +305,14 @@ fn render_header(f: &mut Frame, area: Rect, session: Option<&crate::session::Ses
         ])
     } else {
         Line::from(vec![
-            Span::styled("agentscope  ", Style::default().fg(CLR_PURPLE).add_modifier(Modifier::BOLD)),
-            Span::styled("no active session — run: agentscope start \"mission\"", Style::default().fg(CLR_MUTED)),
+            Span::styled(
+                "agentscope  ",
+                Style::default().fg(CLR_PURPLE).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                "no active session — run: agentscope start \"mission\"",
+                Style::default().fg(CLR_MUTED),
+            ),
         ])
     };
 
@@ -316,12 +328,10 @@ fn render_file_list(f: &mut Frame, area: Rect, files: Option<&[AnnotatedFile]>) 
         .style(Style::default().bg(CLR_BG));
 
     let items: Vec<ListItem> = match files {
-        None => vec![
-            ListItem::new(Line::from(Span::styled(
-                "  waiting for session…",
-                Style::default().fg(CLR_DIM),
-            )))
-        ],
+        None => vec![ListItem::new(Line::from(Span::styled(
+            "  waiting for session…",
+            Style::default().fg(CLR_DIM),
+        )))],
         Some(files) if files.is_empty() => vec![
             ListItem::new(Line::from(Span::styled(
                 "  no changes yet",
@@ -329,7 +339,9 @@ fn render_file_list(f: &mut Frame, area: Rect, files: Option<&[AnnotatedFile]>) 
             ))),
             ListItem::new(Line::from(Span::styled(
                 "  watching all files vs HEAD",
-                Style::default().fg(CLR_MUTED).add_modifier(Modifier::ITALIC),
+                Style::default()
+                    .fg(CLR_MUTED)
+                    .add_modifier(Modifier::ITALIC),
             ))),
             ListItem::new(Line::from(Span::raw(""))),
             ListItem::new(Line::from(Span::styled(
@@ -337,22 +349,31 @@ fn render_file_list(f: &mut Frame, area: Rect, files: Option<&[AnnotatedFile]>) 
                 Style::default().fg(CLR_MUTED),
             ))),
         ],
-        Some(files) => files.iter().map(|af| {
-            let (tag, tag_color, path_color) = match &af.verdict {
-                FileVerdict::InScope => ("IN SCOPE", CLR_GREEN, CLR_BLUE),
-                FileVerdict::Unasked => ("UNASKED ", CLR_AMBER, CLR_AMBER),
-                FileVerdict::Blocked { .. } => ("BLOCKED ", CLR_RED, CLR_RED),
-                FileVerdict::Clean => ("CLEAN   ", CLR_DIM, CLR_DIM),
-            };
+        Some(files) => files
+            .iter()
+            .map(|af| {
+                let (tag, tag_color, path_color) = match &af.verdict {
+                    FileVerdict::InScope => ("IN SCOPE", CLR_GREEN, CLR_BLUE),
+                    FileVerdict::Unasked => ("UNASKED ", CLR_AMBER, CLR_AMBER),
+                    FileVerdict::Blocked { .. } => ("BLOCKED ", CLR_RED, CLR_RED),
+                    FileVerdict::Clean => ("CLEAN   ", CLR_DIM, CLR_DIM),
+                };
 
-            let stats = format!(" +{} −{}", af.diff.additions, af.diff.deletions);
-            let line = Line::from(vec![
-                Span::styled(format!("  {} ", tag), Style::default().fg(tag_color).add_modifier(Modifier::BOLD)),
-                Span::styled(af.diff.path.display().to_string(), Style::default().fg(path_color)),
-                Span::styled(stats, Style::default().fg(CLR_DIM)),
-            ]);
-            ListItem::new(line)
-        }).collect(),
+                let stats = format!(" +{} −{}", af.diff.additions, af.diff.deletions);
+                let line = Line::from(vec![
+                    Span::styled(
+                        format!("  {} ", tag),
+                        Style::default().fg(tag_color).add_modifier(Modifier::BOLD),
+                    ),
+                    Span::styled(
+                        af.diff.path.display().to_string(),
+                        Style::default().fg(path_color),
+                    ),
+                    Span::styled(stats, Style::default().fg(CLR_DIM)),
+                ]);
+                ListItem::new(line)
+            })
+            .collect(),
     };
 
     let list = List::new(items).block(block);
@@ -363,31 +384,39 @@ fn render_file_list(f: &mut Frame, area: Rect, files: Option<&[AnnotatedFile]>) 
 
 fn render_bar_chart(f: &mut Frame, area: Rect, files: Option<&[AnnotatedFile]>) {
     let block = Block::default()
-        .title(Span::styled(" Verdicts ", Style::default().fg(CLR_CYAN).add_modifier(Modifier::BOLD)))
+        .title(Span::styled(
+            " Verdicts ",
+            Style::default().fg(CLR_CYAN).add_modifier(Modifier::BOLD),
+        ))
         .borders(Borders::ALL)
         .border_style(Style::default().fg(CLR_BORDER))
         .style(Style::default().bg(CLR_BG));
 
     if let Some(files) = files {
-        let in_scope = files.iter().filter(|f| f.verdict == FileVerdict::InScope).count() as u64;
-        let unasked = files.iter().filter(|f| f.verdict == FileVerdict::Unasked).count() as u64;
+        let in_scope = files
+            .iter()
+            .filter(|f| f.verdict == FileVerdict::InScope)
+            .count() as u64;
+        let unasked = files
+            .iter()
+            .filter(|f| f.verdict == FileVerdict::Unasked)
+            .count() as u64;
         let blocked = files.iter().filter(|f| f.verdict.is_blocked()).count() as u64;
 
-        let bar_group = BarGroup::default()
-            .bars(&[
-                Bar::default()
-                    .value(in_scope)
-                    .label("In Scope".into())
-                    .style(Style::default().fg(CLR_GREEN)),
-                Bar::default()
-                    .value(unasked)
-                    .label("Unasked".into())
-                    .style(Style::default().fg(CLR_AMBER)),
-                Bar::default()
-                    .value(blocked)
-                    .label("Blocked".into())
-                    .style(Style::default().fg(CLR_RED)),
-            ]);
+        let bar_group = BarGroup::default().bars(&[
+            Bar::default()
+                .value(in_scope)
+                .label("In Scope".into())
+                .style(Style::default().fg(CLR_GREEN)),
+            Bar::default()
+                .value(unasked)
+                .label("Unasked".into())
+                .style(Style::default().fg(CLR_AMBER)),
+            Bar::default()
+                .value(blocked)
+                .label("Blocked".into())
+                .style(Style::default().fg(CLR_RED)),
+        ]);
 
         let chart = BarChart::default()
             .block(block)
@@ -401,7 +430,8 @@ fn render_bar_chart(f: &mut Frame, area: Rect, files: Option<&[AnnotatedFile]>) 
         let para = Paragraph::new(Line::from(Span::styled(
             "  no data",
             Style::default().fg(CLR_DIM),
-        ))).block(block);
+        )))
+        .block(block);
         f.render_widget(para, area);
     }
 }
@@ -410,7 +440,10 @@ fn render_bar_chart(f: &mut Frame, area: Rect, files: Option<&[AnnotatedFile]>) 
 
 fn render_pie_chart(f: &mut Frame, area: Rect, files: Option<&[AnnotatedFile]>) {
     let block = Block::default()
-        .title(Span::styled(" Scope Distribution ", Style::default().fg(CLR_PURPLE).add_modifier(Modifier::BOLD)))
+        .title(Span::styled(
+            " Scope Distribution ",
+            Style::default().fg(CLR_PURPLE).add_modifier(Modifier::BOLD),
+        ))
         .borders(Borders::ALL)
         .border_style(Style::default().fg(CLR_BORDER))
         .style(Style::default().bg(CLR_BG));
@@ -433,8 +466,14 @@ fn render_pie_chart(f: &mut Frame, area: Rect, files: Option<&[AnnotatedFile]>) 
         }
 
         let total = files.len().max(1);
-        let in_scope = files.iter().filter(|f| f.verdict == FileVerdict::InScope).count();
-        let unasked = files.iter().filter(|f| f.verdict == FileVerdict::Unasked).count();
+        let in_scope = files
+            .iter()
+            .filter(|f| f.verdict == FileVerdict::InScope)
+            .count();
+        let unasked = files
+            .iter()
+            .filter(|f| f.verdict == FileVerdict::Unasked)
+            .count();
         let blocked = files.iter().filter(|f| f.verdict.is_blocked()).count();
 
         let bar_width = (inner.width as usize).saturating_sub(4);
@@ -496,7 +535,10 @@ fn render_stats_and_judge(
     state: &WatchState,
 ) {
     let block = Block::default()
-        .title(Span::styled(" Stats & Judge ", Style::default().fg(CLR_CYAN).add_modifier(Modifier::BOLD)))
+        .title(Span::styled(
+            " Stats & Judge ",
+            Style::default().fg(CLR_CYAN).add_modifier(Modifier::BOLD),
+        ))
         .borders(Borders::ALL)
         .border_style(Style::default().fg(CLR_BORDER))
         .style(Style::default().bg(CLR_BG));
@@ -510,11 +552,17 @@ fn render_stats_and_judge(
     if let Some(files) = files {
         let total_add: usize = files.iter().map(|f| f.diff.additions).sum();
         let total_del: usize = files.iter().map(|f| f.diff.deletions).sum();
-        let in_scope = files.iter().filter(|f| f.verdict == FileVerdict::InScope).count();
+        let in_scope = files
+            .iter()
+            .filter(|f| f.verdict == FileVerdict::InScope)
+            .count();
 
         lines.push(Line::from(vec![
             Span::styled("  Files  ", Style::default().fg(CLR_DIM)),
-            Span::styled(format!("{}", files.len()), Style::default().fg(CLR_WHITE).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                format!("{}", files.len()),
+                Style::default().fg(CLR_WHITE).add_modifier(Modifier::BOLD),
+            ),
             Span::styled("    Lines  ", Style::default().fg(CLR_DIM)),
             Span::styled(format!("+{}", total_add), Style::default().fg(CLR_GREEN)),
             Span::styled(format!(" -{}", total_del), Style::default().fg(CLR_RED)),
@@ -525,13 +573,22 @@ fn render_stats_and_judge(
         let health = (in_scope * 100) / total;
         let filled = (health / 10).min(10);
         let empty = 10 - filled;
-        let bar_color = if health >= 80 { CLR_GREEN } else if health >= 50 { CLR_AMBER } else { CLR_RED };
+        let bar_color = if health >= 80 {
+            CLR_GREEN
+        } else if health >= 50 {
+            CLR_AMBER
+        } else {
+            CLR_RED
+        };
 
         lines.push(Line::from(vec![
             Span::styled("  Health ", Style::default().fg(CLR_DIM)),
             Span::styled("█".repeat(filled), Style::default().fg(bar_color)),
             Span::styled("░".repeat(empty), Style::default().fg(CLR_DIM)),
-            Span::styled(format!(" {}%", health), Style::default().fg(bar_color).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                format!(" {}%", health),
+                Style::default().fg(bar_color).add_modifier(Modifier::BOLD),
+            ),
         ]));
     }
 
@@ -539,7 +596,10 @@ fn render_stats_and_judge(
     lines.push(Line::from(vec![
         Span::styled("  Watch  ", Style::default().fg(CLR_DIM)),
         Span::styled(state.uptime_str(), Style::default().fg(CLR_MUTED)),
-        Span::styled(format!("  ({} cycles)", state.refresh_count), Style::default().fg(CLR_DIM)),
+        Span::styled(
+            format!("  ({} cycles)", state.refresh_count),
+            Style::default().fg(CLR_DIM),
+        ),
     ]));
 
     lines.push(Line::from(Span::raw("")));
@@ -548,23 +608,29 @@ fn render_stats_and_judge(
     let judge_status = state.judge_status.lock().unwrap().clone();
     match judge_status {
         JudgeStatus::Idle => {
-            lines.push(Line::from(vec![
-                Span::styled("  ── Judge ──", Style::default().fg(CLR_DIM)),
-            ]));
+            lines.push(Line::from(vec![Span::styled(
+                "  ── Judge ──",
+                Style::default().fg(CLR_DIM),
+            )]));
             lines.push(Line::from(vec![
                 Span::styled("  Press ", Style::default().fg(CLR_DIM)),
-                Span::styled("j", Style::default().fg(CLR_CYAN).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    "j",
+                    Style::default().fg(CLR_CYAN).add_modifier(Modifier::BOLD),
+                ),
                 Span::styled(" to run LLM judge", Style::default().fg(CLR_DIM)),
             ]));
         }
         JudgeStatus::Running => {
-            lines.push(Line::from(vec![
-                Span::styled("  ── Judge ──", Style::default().fg(CLR_PURPLE)),
-            ]));
+            lines.push(Line::from(vec![Span::styled(
+                "  ── Judge ──",
+                Style::default().fg(CLR_PURPLE),
+            )]));
             let dots = ".".repeat(((state.refresh_count / 3) % 4) as usize);
-            lines.push(Line::from(vec![
-                Span::styled(format!("  ⏳ Analyzing{}", dots), Style::default().fg(CLR_AMBER)),
-            ]));
+            lines.push(Line::from(vec![Span::styled(
+                format!("  ⏳ Analyzing{}", dots),
+                Style::default().fg(CLR_AMBER),
+            )]));
         }
         JudgeStatus::Done(ref result) => {
             let (verdict_str, verdict_color) = match result.verdict {
@@ -573,18 +639,28 @@ fn render_stats_and_judge(
                 JudgeVerdict::Unknown => ("? UNKNOWN", CLR_MUTED),
             };
 
-            lines.push(Line::from(vec![
-                Span::styled("  ── Judge ──", Style::default().fg(CLR_PURPLE)),
-            ]));
-            lines.push(Line::from(vec![
-                Span::styled(format!("  {}", verdict_str), Style::default().fg(verdict_color).add_modifier(Modifier::BOLD)),
-            ]));
+            lines.push(Line::from(vec![Span::styled(
+                "  ── Judge ──",
+                Style::default().fg(CLR_PURPLE),
+            )]));
+            lines.push(Line::from(vec![Span::styled(
+                format!("  {}", verdict_str),
+                Style::default()
+                    .fg(verdict_color)
+                    .add_modifier(Modifier::BOLD),
+            )]));
 
             // Confidence bar
             let pct = (result.confidence * 100.0) as usize;
             let filled = (pct / 10).min(10);
             let empty = 10 - filled;
-            let bar_color = if pct >= 70 { CLR_GREEN } else if pct >= 40 { CLR_AMBER } else { CLR_RED };
+            let bar_color = if pct >= 70 {
+                CLR_GREEN
+            } else if pct >= 40 {
+                CLR_AMBER
+            } else {
+                CLR_RED
+            };
 
             lines.push(Line::from(vec![
                 Span::styled("  Conf.  ", Style::default().fg(CLR_DIM)),
@@ -599,42 +675,53 @@ fn render_stats_and_judge(
             } else {
                 result.reasoning.clone()
             };
-            lines.push(Line::from(vec![
-                Span::styled(format!("  \"{}\"", reasoning), Style::default().fg(CLR_MUTED)),
-            ]));
+            lines.push(Line::from(vec![Span::styled(
+                format!("  \"{}\"", reasoning),
+                Style::default().fg(CLR_MUTED),
+            )]));
 
-            lines.push(Line::from(vec![
-                Span::styled(format!("  {} / {}", result.provider, result.model), Style::default().fg(CLR_DIM)),
-            ]));
+            lines.push(Line::from(vec![Span::styled(
+                format!("  {} / {}", result.provider, result.model),
+                Style::default().fg(CLR_DIM),
+            )]));
         }
         JudgeStatus::Error(ref msg) => {
-            lines.push(Line::from(vec![
-                Span::styled("  ── Judge ──", Style::default().fg(CLR_RED)),
-            ]));
-            let short = if msg.len() > 35 { format!("{}…", &msg[..34]) } else { msg.clone() };
-            lines.push(Line::from(vec![
-                Span::styled(format!("  ✕ {}", short), Style::default().fg(CLR_RED)),
-            ]));
-            lines.push(Line::from(vec![
-                Span::styled("  Press j to retry", Style::default().fg(CLR_DIM)),
-            ]));
+            lines.push(Line::from(vec![Span::styled(
+                "  ── Judge ──",
+                Style::default().fg(CLR_RED),
+            )]));
+            let short = if msg.len() > 35 {
+                format!("{}…", &msg[..34])
+            } else {
+                msg.clone()
+            };
+            lines.push(Line::from(vec![Span::styled(
+                format!("  ✕ {}", short),
+                Style::default().fg(CLR_RED),
+            )]));
+            lines.push(Line::from(vec![Span::styled(
+                "  Press j to retry",
+                Style::default().fg(CLR_DIM),
+            )]));
         }
     }
 
     // Mission reminder
     if let Some(s) = session {
         lines.push(Line::from(Span::raw("")));
-        lines.push(Line::from(vec![
-            Span::styled("  ── Mission ──", Style::default().fg(CLR_DIM)),
-        ]));
+        lines.push(Line::from(vec![Span::styled(
+            "  ── Mission ──",
+            Style::default().fg(CLR_DIM),
+        )]));
         let mission = if s.mission.len() > 38 {
             format!("{}…", &s.mission[..37])
         } else {
             s.mission.clone()
         };
-        lines.push(Line::from(vec![
-            Span::styled(format!("  {}", mission), Style::default().fg(CLR_WHITE)),
-        ]));
+        lines.push(Line::from(vec![Span::styled(
+            format!("  {}", mission),
+            Style::default().fg(CLR_WHITE),
+        )]));
     }
 
     let para = Paragraph::new(lines);
@@ -660,12 +747,26 @@ fn render_summary_bar(
             Style::default().fg(CLR_GREEN).add_modifier(Modifier::BOLD),
         ))
     } else if let Some(files) = files {
-        let in_scope = files.iter().filter(|f| f.verdict == FileVerdict::InScope).count();
-        let unasked = files.iter().filter(|f| f.verdict == FileVerdict::Unasked).count();
+        let in_scope = files
+            .iter()
+            .filter(|f| f.verdict == FileVerdict::InScope)
+            .count();
+        let unasked = files
+            .iter()
+            .filter(|f| f.verdict == FileVerdict::Unasked)
+            .count();
         let blocked = files.iter().filter(|f| f.verdict.is_blocked()).count();
 
-        let pulse = if state.refresh_count % 4 < 2 { "●" } else { "○" };
-        let dashboard_hint = if state.show_dashboard { "d=hide" } else { "d=dash" };
+        let pulse = if state.refresh_count % 4 < 2 {
+            "●"
+        } else {
+            "○"
+        };
+        let dashboard_hint = if state.show_dashboard {
+            "d=hide"
+        } else {
+            "d=dash"
+        };
 
         // Show judge status indicator
         let judge_indicator = match *state.judge_status.lock().unwrap() {
@@ -680,13 +781,22 @@ fn render_summary_bar(
         };
 
         Line::from(vec![
-            Span::styled(format!("  {} in scope", in_scope), Style::default().fg(CLR_GREEN)),
+            Span::styled(
+                format!("  {} in scope", in_scope),
+                Style::default().fg(CLR_GREEN),
+            ),
             Span::styled("  ·  ", Style::default().fg(CLR_DIM)),
-            Span::styled(format!("{} unasked", unasked), Style::default().fg(CLR_AMBER)),
+            Span::styled(
+                format!("{} unasked", unasked),
+                Style::default().fg(CLR_AMBER),
+            ),
             Span::styled("  ·  ", Style::default().fg(CLR_DIM)),
             Span::styled(format!("{} blocked", blocked), Style::default().fg(CLR_RED)),
             Span::styled(
-                format!("  {} live  j=judge  {}  ?=help{}", pulse, dashboard_hint, judge_indicator),
+                format!(
+                    "  {} live  j=judge  {}  ?=help{}",
+                    pulse, dashboard_hint, judge_indicator
+                ),
                 Style::default().fg(CLR_DIM),
             ),
         ])

@@ -5,8 +5,8 @@ use clap::{Parser, Subcommand, ValueEnum};
     name = "agentscope",
     version,
     about = "Did your AI agent do only what you asked?",
-    long_about = "AgentScope is a scope firewall and audit layer for AI coding agents.\nIt records your mission, watches what the agent actually changes,\nand blocks policy violations before they reach git.",
-    after_help = "EXAMPLES:\n  agentscope start \"Fix the rate-limit bug in api/middleware.ts\"\n  agentscope check\n  agentscope judge -m qwen3.5:2b\n  agentscope model list\n  agentscope model set llama3\n  agentscope config show\n  agentscope config set model qwen3.5:2b\n  agentscope report\n  agentscope diff --problems\n  agentscope hook install\n  agentscope audit last-5\n  agentscope use claude\n",
+    long_about = "AgentScope is a scope firewall and audit layer for AI coding agents.\nIt records or detects your mission, watches Git changes,\nand blocks policy violations before they reach git.",
+    after_help = "COMMON FLOWS:\n  agentscope init\n  agentscope start \"Fix the rate-limit bug in api/middleware.ts\" --agent codex\n  agentscope watch\n  agentscope check\n\nAGENT-AWARE FLOW:\n  agentscope agents doctor\n  agentscope agents detect\n  agentscope attach --agent auto\n  agentscope attach --agent auto --apply\n  agentscope monitor --agent auto\n\nOTHER USEFUL COMMANDS:\n  agentscope judge -m qwen3.5:2b\n  agentscope diff --problems\n  agentscope report --markdown\n  agentscope hook install\n  agentscope mcp\n  agentscope skills install --agent all\n  agentscope plugins install --agent all\n",
     styles = clap_styles(),
 )]
 pub struct Cli {
@@ -98,6 +98,49 @@ pub enum Commands {
         action: HookAction,
     },
 
+    /// Detect local agent context and inferred missions
+    Agents {
+        #[command(subcommand)]
+        action: AgentsAction,
+    },
+
+    /// Infer a mission from a local agent session
+    Attach {
+        /// Agent to inspect, or auto to pick by configuration
+        #[arg(long, default_value = "auto")]
+        agent: String,
+
+        /// Write .agentscope/session.json instead of printing a dry run
+        #[arg(long)]
+        apply: bool,
+    },
+
+    /// Watch current scope state with optional agent context detection
+    Monitor {
+        /// Agent to inspect, or auto to pick by configuration
+        #[arg(long, default_value = "auto")]
+        agent: String,
+
+        /// Write inferred high-confidence missions automatically
+        #[arg(long)]
+        auto_attach: bool,
+    },
+
+    /// Run the AgentScope JSON-RPC MCP server
+    Mcp,
+
+    /// Install or list agent instruction files
+    Skills {
+        #[command(subcommand)]
+        action: IntegrationAction,
+    },
+
+    /// Install or list project-local plugin assets
+    Plugins {
+        #[command(subcommand)]
+        action: IntegrationAction,
+    },
+
     /// Audit past sessions — what changed, why, when
     Audit {
         /// Range: "last-5", "today", "this-week", or a git range like "HEAD~3..HEAD"
@@ -109,7 +152,7 @@ pub enum Commands {
         session_id: Option<String>,
     },
 
-    /// Configure AgentScope to work natively with an agent
+    /// Write helper integration files for an agent
     Use {
         /// Agent to integrate
         #[arg(value_enum)]
@@ -174,7 +217,7 @@ pub enum ConfigAction {
 
     /// Set a config value (e.g. agentscope config set model qwen3.5:2b)
     Set {
-        /// Config key (model, provider, endpoint, max_files, max_lines, judge.enabled, team.enabled)
+        /// Config key (model, provider, endpoint, max_files, max_lines, judge.enabled, team.enabled, agents.auto_detect, agents.auto_attach)
         key: String,
 
         /// Value to set
@@ -205,6 +248,41 @@ pub enum HookAction {
     Uninstall,
     /// Show current hook status
     Status,
+}
+
+// ── Agent context subcommands ────────────────────────────────────────────────
+
+#[derive(Subcommand, Clone, Debug)]
+pub enum AgentsAction {
+    /// Show supported agents and whether local sources were found
+    Detect,
+
+    /// Explain found/missing agent sources and repair options
+    Doctor,
+
+    /// Print the inferred context for an agent
+    Context {
+        /// Agent to inspect, or auto to pick by configuration
+        #[arg(long, default_value = "auto")]
+        agent: String,
+    },
+}
+
+#[derive(Subcommand, Clone, Debug)]
+pub enum IntegrationAction {
+    /// List supported generated assets
+    List {
+        /// Agent to list, or all
+        #[arg(long, default_value = "all")]
+        agent: String,
+    },
+
+    /// Install generated project-local assets
+    Install {
+        /// Agent to install, or all
+        #[arg(long, default_value = "all")]
+        agent: String,
+    },
 }
 
 /// Provider argument for judge/model commands
@@ -280,11 +358,23 @@ pub enum Preset {
 fn clap_styles() -> clap::builder::Styles {
     use clap::builder::styling::{AnsiColor, Color, Style};
     clap::builder::Styles::styled()
-        .header(Style::new().bold().fg_color(Some(Color::Ansi(AnsiColor::Cyan))))
-        .usage(Style::new().bold().fg_color(Some(Color::Ansi(AnsiColor::Cyan))))
+        .header(
+            Style::new()
+                .bold()
+                .fg_color(Some(Color::Ansi(AnsiColor::Cyan))),
+        )
+        .usage(
+            Style::new()
+                .bold()
+                .fg_color(Some(Color::Ansi(AnsiColor::Cyan))),
+        )
         .literal(Style::new().fg_color(Some(Color::Ansi(AnsiColor::BrightWhite))))
         .placeholder(Style::new().fg_color(Some(Color::Ansi(AnsiColor::White))))
-        .error(Style::new().bold().fg_color(Some(Color::Ansi(AnsiColor::Red))))
+        .error(
+            Style::new()
+                .bold()
+                .fg_color(Some(Color::Ansi(AnsiColor::Red))),
+        )
         .valid(Style::new().fg_color(Some(Color::Ansi(AnsiColor::Green))))
         .invalid(Style::new().fg_color(Some(Color::Ansi(AnsiColor::Red))))
 }

@@ -6,7 +6,7 @@ Thank you for your interest in contributing to AgentScope! This project aims to 
 
 ```bash
 # Fork and clone the repo
-git clone https://github.com/YOUR_USERNAME/agentscopev2
+git clone git@github.com:YOUR_USERNAME/agentscopev2.git
 cd agentscopev2
 
 # Build
@@ -62,7 +62,7 @@ Open an issue tagged `enhancement` with:
 
 | Area | Examples |
 |---|---|
-| **New agent integrations** | Aider, Continue, Windsurf, etc. |
+| **Agent context readers** | Aider, Continue, Windsurf, changed Claude/Codex/Cursor/Gemini log formats |
 | **Policy engine features** | Regex path matching, file-type rules, custom validators |
 | **LLM judge providers** | Groq, local llama.cpp, Mistral API |
 | **Output formats** | SARIF, GitHub annotations, Slack webhooks |
@@ -76,6 +76,7 @@ src/
 ├── main.rs      # Entry point, command dispatch
 ├── cli.rs       # Clap CLI definitions
 ├── config.rs    # YAML config, agent integration templates
+├── agents.rs    # Local agent context detection, attach, MCP, skills/plugins
 ├── git.rs       # git2 integration (diffs, baselines)
 ├── policy.rs    # Glob-based policy engine, scope hints
 ├── session.rs   # Session lifecycle (start, check, status)
@@ -105,6 +106,23 @@ cargo test test_blocked_paths
 # Run with output
 cargo test -- --nocapture
 ```
+
+### Testing agent-aware monitoring
+
+Agent readers must fail soft. A missing local source should never make `agentscope check` fail.
+
+Use a temporary `HOME` in tests and create fake local logs under the supported default paths:
+
+| Agent | Test path |
+|---|---|
+| Claude Code | `.claude/projects/work/session.jsonl` |
+| Codex | `.codex/sessions/2026/05/24/rollout-test.jsonl` |
+| OpenCode | `.local/share/opencode/project/app/storage/chat.json` |
+| Cursor | `.cursor/projects/hash/agent-transcripts/transcript.jsonl` |
+| Gemini CLI | `.gemini/tmp/hash/chats/chat.json` |
+| Copilot CLI | `.copilot/session-state/state.json` |
+
+For mission extraction changes, add regression tests for noisy real-world text such as tool calls, patch hunks, metadata-only files, login commands, and wrapped Codex app requests.
 
 ## Release Process
 

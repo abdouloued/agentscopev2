@@ -6,7 +6,7 @@ use crate::policy::AnnotatedFile;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JudgeResult {
-    pub confidence: f32,        // 0.0–1.0: how well changes match mission
+    pub confidence: f32, // 0.0–1.0: how well changes match mission
     pub verdict: JudgeVerdict,
     pub reasoning: String,
     pub provider: String,
@@ -106,7 +106,9 @@ async fn evaluate_ollama(prompt: &str, config: &JudgeConfig) -> Result<JudgeResu
 
     // Disable thinking mode for qwen3.5 models (puts output in "response" not "thinking")
     if config.model.starts_with("qwen3") {
-        body.as_object_mut().unwrap().insert("think".into(), serde_json::json!(false));
+        body.as_object_mut()
+            .unwrap()
+            .insert("think".into(), serde_json::json!(false));
     }
 
     let url = format!("{}/api/generate", config.endpoint);
@@ -155,8 +157,8 @@ async fn evaluate_claude(prompt: &str, _config: &JudgeConfig) -> Result<JudgeRes
 // ── OpenAI ────────────────────────────────────────────────────────────────────
 
 async fn evaluate_openai(prompt: &str, _config: &JudgeConfig) -> Result<JudgeResult> {
-    let api_key = std::env::var("OPENAI_API_KEY")
-        .map_err(|_| anyhow::anyhow!("OPENAI_API_KEY not set"))?;
+    let api_key =
+        std::env::var("OPENAI_API_KEY").map_err(|_| anyhow::anyhow!("OPENAI_API_KEY not set"))?;
 
     let client = reqwest::Client::new();
 
@@ -175,7 +177,9 @@ async fn evaluate_openai(prompt: &str, _config: &JudgeConfig) -> Result<JudgeRes
         .await?;
 
     let raw: serde_json::Value = response.json().await?;
-    let text = raw["choices"][0]["message"]["content"].as_str().unwrap_or("{}");
+    let text = raw["choices"][0]["message"]["content"]
+        .as_str()
+        .unwrap_or("{}");
 
     parse_judge_response(text, "openai", "gpt-4o-mini")
 }
@@ -251,7 +255,8 @@ mod tests {
 
     #[test]
     fn parse_valid_json_drift() {
-        let json = r#"{"confidence": 0.3, "verdict": "DRIFT", "reasoning": "Unrelated changes found."}"#;
+        let json =
+            r#"{"confidence": 0.3, "verdict": "DRIFT", "reasoning": "Unrelated changes found."}"#;
         let result = parse_judge_response(json, "ollama", "qwen3.5:2b").unwrap();
         assert_eq!(result.verdict, JudgeVerdict::Drift);
         assert!((result.confidence - 0.3).abs() < 0.01);

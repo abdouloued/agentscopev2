@@ -121,22 +121,18 @@ fn filter_entries<'a>(
             match range {
                 "last-5" => true, // handled by take() below
                 "last-10" => true,
-                "today" => {
-                    DateTime::parse_from_rfc3339(&e.timestamp)
-                        .map(|dt| {
-                            let age = now - dt.with_timezone(&Utc);
-                            age < Duration::hours(24)
-                        })
-                        .unwrap_or(false)
-                }
-                "this-week" => {
-                    DateTime::parse_from_rfc3339(&e.timestamp)
-                        .map(|dt| {
-                            let age = now - dt.with_timezone(&Utc);
-                            age < Duration::days(7)
-                        })
-                        .unwrap_or(false)
-                }
+                "today" => DateTime::parse_from_rfc3339(&e.timestamp)
+                    .map(|dt| {
+                        let age = now - dt.with_timezone(&Utc);
+                        age < Duration::hours(24)
+                    })
+                    .unwrap_or(false),
+                "this-week" => DateTime::parse_from_rfc3339(&e.timestamp)
+                    .map(|dt| {
+                        let age = now - dt.with_timezone(&Utc);
+                        age < Duration::days(7)
+                    })
+                    .unwrap_or(false),
                 _ => true,
             }
         })

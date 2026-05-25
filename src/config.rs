@@ -23,9 +23,14 @@ pub struct Config {
 
     #[serde(default)]
     pub team: TeamConfig,
+
+    #[serde(default)]
+    pub agents: AgentsConfig,
 }
 
-fn default_version() -> u8 { 1 }
+fn default_version() -> u8 {
+    1
+}
 
 impl Default for Config {
     fn default() -> Self {
@@ -34,6 +39,7 @@ impl Default for Config {
             policy: PolicyConfig::default(),
             judge: JudgeConfig::default(),
             team: TeamConfig::default(),
+            agents: AgentsConfig::default(),
         }
     }
 }
@@ -131,6 +137,63 @@ pub struct TeamConfig {
     pub enabled: bool,
     pub share_logs: bool,
     pub log_path: Option<PathBuf>,
+}
+
+// ── Agent context detection ─────────────────────────────────────────────────
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AgentsConfig {
+    #[serde(default = "default_true")]
+    pub auto_detect: bool,
+    #[serde(default)]
+    pub auto_attach: bool,
+    #[serde(default = "default_preferred_agents")]
+    pub preferred: Vec<String>,
+    #[serde(default)]
+    pub sources: std::collections::BTreeMap<String, AgentSourceConfig>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AgentSourceConfig {
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    #[serde(default)]
+    pub paths: Vec<String>,
+}
+
+impl Default for AgentsConfig {
+    fn default() -> Self {
+        Self {
+            auto_detect: true,
+            auto_attach: false,
+            preferred: default_preferred_agents(),
+            sources: std::collections::BTreeMap::new(),
+        }
+    }
+}
+
+impl Default for AgentSourceConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            paths: Vec::new(),
+        }
+    }
+}
+
+fn default_true() -> bool {
+    true
+}
+
+fn default_preferred_agents() -> Vec<String> {
+    vec![
+        "claude-code".into(),
+        "codex".into(),
+        "opencode".into(),
+        "cursor".into(),
+        "gemini-cli".into(),
+        "copilot-cli".into(),
+    ]
 }
 
 // ── Load / write ──────────────────────────────────────────────────────────────
@@ -371,6 +434,14 @@ mod tests {
     }
 
     #[test]
+    fn default_agents_config_is_safe() {
+        let config = Config::default();
+        assert!(config.agents.auto_detect);
+        assert!(!config.agents.auto_attach);
+        assert!(config.agents.preferred.contains(&"codex".to_string()));
+    }
+
+    #[test]
     fn default_config_limits_are_zero() {
         let config = Config::default();
         assert_eq!(config.policy.max_files_changed, 0);
@@ -461,7 +532,11 @@ judge:
         let parsed: Config = serde_yaml::from_str(&yaml).unwrap();
         assert_eq!(parsed.version, config.version);
         assert_eq!(parsed.judge.model, config.judge.model);
-        assert_eq!(parsed.policy.max_files_changed, config.policy.max_files_changed);
+        assert_eq!(
+            parsed.policy.max_files_changed,
+            config.policy.max_files_changed
+        );
         assert_eq!(parsed.team.enabled, config.team.enabled);
+        assert_eq!(parsed.agents.auto_attach, config.agents.auto_attach);
     }
 }

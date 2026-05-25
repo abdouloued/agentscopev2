@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use ulid::Ulid;
 
 use crate::cli::{AgentKind, JudgeProviderArg};
-use crate::config::{self, ACTIVITY_LOG, SESSION_DIR, JudgeConfig, JudgeProvider};
+use crate::config::{self, JudgeConfig, JudgeProvider, ACTIVITY_LOG, SESSION_DIR};
 use crate::git;
 use crate::judge;
 use crate::output::{CheckReport, Printer};
@@ -23,6 +23,14 @@ pub struct Session {
     pub git_baseline: String,
     pub started_at: String,
     pub repo_root: PathBuf,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mission_source: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mission_confidence: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub detected_agent: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_path: Option<PathBuf>,
 }
 
 // ── start ─────────────────────────────────────────────────────────────────────
@@ -33,7 +41,10 @@ pub async fn start(mission: String, agent: AgentKind, watch: bool) -> Result<()>
 
     let repo = git::open_repo()?;
     let baseline = git::capture_baseline(&repo)?;
-    let repo_root = repo.workdir().unwrap_or_else(|| std::path::Path::new(".")).to_path_buf();
+    let repo_root = repo
+        .workdir()
+        .unwrap_or_else(|| std::path::Path::new("."))
+        .to_path_buf();
 
     std::fs::create_dir_all(SESSION_DIR)?;
 
@@ -44,6 +55,10 @@ pub async fn start(mission: String, agent: AgentKind, watch: bool) -> Result<()>
         git_baseline: baseline.clone(),
         started_at: Utc::now().to_rfc3339(),
         repo_root: repo_root.clone(),
+        mission_source: None,
+        mission_confidence: None,
+        detected_agent: None,
+        source_path: None,
     };
 
     save_session(&session)?;
@@ -78,7 +93,9 @@ pub async fn check(session_id: Option<String>, json: bool, share: bool) -> Resul
 
     // LLM judge (async, optional)
     let judge_result = if config.judge.enabled && !json {
-        judge::evaluate(&session.mission, &annotated, &config.judge).await.ok()
+        judge::evaluate(&session.mission, &annotated, &config.judge)
+            .await
+            .ok()
     } else {
         None
     };
@@ -100,7 +117,10 @@ pub async fn check(session_id: Option<String>, json: bool, share: bool) -> Resul
     if share {
         let markdown = report.to_markdown();
         // In a real build: use arboard crate for clipboard
-        println!("\n--- Markdown summary (copy to clipboard) ---\n{}", markdown);
+        println!(
+            "\n--- Markdown summary (copy to clipboard) ---\n{}",
+            markdown
+        );
     }
 
     // Append to activity log
@@ -210,7 +230,9 @@ pub async fn report(markdown: bool) -> Result<()> {
 
     // Run judge
     let judge_result = if config.judge.enabled {
-        judge::evaluate(&session.mission, &annotated, &config.judge).await.ok()
+        judge::evaluate(&session.mission, &annotated, &config.judge)
+            .await
+            .ok()
     } else {
         None
     };
@@ -245,9 +267,10 @@ pub async fn diff(problems: bool) -> Result<()> {
     let annotated = engine.annotate(&diff_result.files, &session.mission);
 
     let filtered: Vec<_> = if problems {
-        annotated.iter().filter(|f| {
-            f.verdict.is_blocked() || f.verdict == crate::policy::FileVerdict::Unasked
-        }).collect()
+        annotated
+            .iter()
+            .filter(|f| f.verdict.is_blocked() || f.verdict == crate::policy::FileVerdict::Unasked)
+            .collect()
     } else {
         annotated.iter().collect()
     };
@@ -262,7 +285,8 @@ pub async fn diff(problems: bool) -> Result<()> {
     }
 
     println!();
-    println!("  {} {} · {}",
+    println!(
+        "  {} {} · {}",
         console::style(&session.id[..8]).cyan(),
         console::style("·").dim(),
         console::style(&session.mission).white(),
@@ -278,20 +302,34 @@ pub async fn diff(problems: bool) -> Result<()> {
     let total_add: usize = filtered.iter().map(|f| f.diff.additions).sum();
     let total_del: usize = filtered.iter().map(|f| f.diff.deletions).sum();
     let blocked = filtered.iter().filter(|f| f.verdict.is_blocked()).count();
-    let unasked = filtered.iter().filter(|f| f.verdict == crate::policy::FileVerdict::Unasked).count();
-    let in_scope = filtered.iter().filter(|f| f.verdict == crate::policy::FileVerdict::InScope).count();
+    let unasked = filtered
+        .iter()
+        .filter(|f| f.verdict == crate::policy::FileVerdict::Unasked)
+        .count();
+    let in_scope = filtered
+        .iter()
+        .filter(|f| f.verdict == crate::policy::FileVerdict::InScope)
+        .count();
 
-    println!("  {} files  {}  {}  {}  {}",
+    println!(
+        "  {} files  {}  {}  {}  {}",
         filtered.len(),
         console::style(format!("+{}", total_add)).green(),
         console::style(format!("-{}", total_del)).red(),
         console::style("·").dim(),
         if blocked > 0 {
-            console::style(format!("{} blocked", blocked)).red().bold().to_string()
+            console::style(format!("{} blocked", blocked))
+                .red()
+                .bold()
+                .to_string()
         } else if unasked > 0 {
-            console::style(format!("{} unasked", unasked)).yellow().to_string()
+            console::style(format!("{} unasked", unasked))
+                .yellow()
+                .to_string()
         } else {
-            console::style(format!("{} in scope", in_scope)).green().to_string()
+            console::style(format!("{} in scope", in_scope))
+                .green()
+                .to_string()
         },
     );
     println!();
@@ -314,10 +352,15 @@ pub async fn status() -> Result<()> {
 
 // ── Persistence ───────────────────────────────────────────────────────────────
 
-fn save_session(session: &Session) -> Result<()> {
+pub fn save_session(session: &Session) -> Result<()> {
+    std::fs::create_dir_all(SESSION_DIR)?;
     let json = serde_json::to_string_pretty(session)?;
     std::fs::write(ACTIVE_SESSION_FILE, json)?;
     Ok(())
+}
+
+pub fn append_session_activity(event: &str, session: &Session) -> Result<()> {
+    append_activity(event, session)
 }
 
 pub fn load_active_session() -> Result<Session> {

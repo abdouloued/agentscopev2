@@ -101,11 +101,7 @@ impl PolicyEngine {
     }
 
     /// Annotate a list of diffs using the mission text to infer scope
-    pub fn annotate(
-        &self,
-        diffs: &[FileDiff],
-        mission: &str,
-    ) -> Vec<AnnotatedFile> {
+    pub fn annotate(&self, diffs: &[FileDiff], mission: &str) -> Vec<AnnotatedFile> {
         let scope_hints = extract_scope_hints(mission);
 
         diffs
@@ -161,8 +157,10 @@ pub enum LimitWarning {
 /// E.g. "Fix rate-limit bug in api/middleware.ts" → ["api", "middleware", "middleware.ts"]
 pub(crate) fn extract_scope_hints(mission: &str) -> Vec<String> {
     // Grab anything that looks like a path segment or filename
-    let re_path = regex_lite::Regex::new(r"[\w.-]+\.(?:ts|js|rs|py|go|rb|java|c|cpp|h|css|html|json|yaml|toml|md)")
-        .unwrap();
+    let re_path = regex_lite::Regex::new(
+        r"[\w.-]+\.(?:ts|js|rs|py|go|rb|java|c|cpp|h|css|html|json|yaml|toml|md)",
+    )
+    .unwrap();
     let re_dir = regex_lite::Regex::new(r"[\w-]+/[\w./:-]+").unwrap();
 
     let mut hints: Vec<String> = Vec::new();
@@ -176,7 +174,9 @@ pub(crate) fn extract_scope_hints(mission: &str) -> Vec<String> {
 
     // Also add individual words longer than 3 chars as fuzzy hints
     for word in mission.split_whitespace() {
-        let w = word.trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+        let w = word
+            .trim_matches(|c: char| !c.is_alphanumeric())
+            .to_lowercase();
         if w.len() > 3 {
             hints.push(w);
         }
@@ -193,9 +193,9 @@ pub(crate) fn is_in_scope(path: &Path, hints: &[String]) -> bool {
         .map(|s| s.to_string_lossy().to_lowercase())
         .unwrap_or_default();
 
-    hints.iter().any(|hint| {
-        path_str.contains(hint.as_str()) || hint.contains(stem.as_str())
-    })
+    hints
+        .iter()
+        .any(|hint| path_str.contains(hint.as_str()) || hint.contains(stem.as_str()))
 }
 
 #[cfg(test)]
@@ -211,7 +211,12 @@ mod tests {
     }
 
     /// Helper: build a PolicyEngine with custom config
-    fn engine_with(blocked: Vec<&str>, warn: Vec<&str>, max_files: usize, max_lines: usize) -> PolicyEngine {
+    fn engine_with(
+        blocked: Vec<&str>,
+        warn: Vec<&str>,
+        max_files: usize,
+        max_lines: usize,
+    ) -> PolicyEngine {
         let config = PolicyConfig {
             blocked: blocked.into_iter().map(String::from).collect(),
             warn: warn.into_iter().map(String::from).collect(),
@@ -249,36 +254,54 @@ mod tests {
     fn blocked_nested_dot_env() {
         let engine = default_engine();
         assert!(engine.check_path(Path::new("backend/.env")).is_blocked());
-        assert!(engine.check_path(Path::new("backend/.env.production")).is_blocked());
+        assert!(engine
+            .check_path(Path::new("backend/.env.production"))
+            .is_blocked());
     }
 
     #[test]
     fn blocked_secrets_dir() {
         let engine = default_engine();
-        assert!(engine.check_path(Path::new("config/secrets/api_key.txt")).is_blocked());
-        assert!(engine.check_path(Path::new("deploy/secrets/cert.pem")).is_blocked());
+        assert!(engine
+            .check_path(Path::new("config/secrets/api_key.txt"))
+            .is_blocked());
+        assert!(engine
+            .check_path(Path::new("deploy/secrets/cert.pem"))
+            .is_blocked());
     }
 
     #[test]
     fn blocked_pem_and_key_files() {
         let engine = default_engine();
         assert!(engine.check_path(Path::new("ssl/server.pem")).is_blocked());
-        assert!(engine.check_path(Path::new("certs/private.key")).is_blocked());
-        assert!(engine.check_path(Path::new("deep/nested/dir/cert.pem")).is_blocked());
+        assert!(engine
+            .check_path(Path::new("certs/private.key"))
+            .is_blocked());
+        assert!(engine
+            .check_path(Path::new("deep/nested/dir/cert.pem"))
+            .is_blocked());
     }
 
     #[test]
     fn blocked_auth_dir() {
         let engine = default_engine();
-        assert!(engine.check_path(Path::new("src/auth/session.ts")).is_blocked());
-        assert!(engine.check_path(Path::new("src/auth/login.rs")).is_blocked());
+        assert!(engine
+            .check_path(Path::new("src/auth/session.ts"))
+            .is_blocked());
+        assert!(engine
+            .check_path(Path::new("src/auth/login.rs"))
+            .is_blocked());
     }
 
     #[test]
     fn blocked_migrations_dir() {
         let engine = default_engine();
-        assert!(engine.check_path(Path::new("db/migrations/001_init.sql")).is_blocked());
-        assert!(engine.check_path(Path::new("src/migrations/v2.sql")).is_blocked());
+        assert!(engine
+            .check_path(Path::new("db/migrations/001_init.sql"))
+            .is_blocked());
+        assert!(engine
+            .check_path(Path::new("src/migrations/v2.sql"))
+            .is_blocked());
     }
 
     #[test]
@@ -345,13 +368,17 @@ mod tests {
     #[test]
     fn normal_test_file_not_blocked() {
         let engine = default_engine();
-        assert!(!engine.check_path(Path::new("tests/integration.rs")).is_blocked());
+        assert!(!engine
+            .check_path(Path::new("tests/integration.rs"))
+            .is_blocked());
     }
 
     #[test]
     fn normal_nested_source_not_blocked() {
         let engine = default_engine();
-        assert!(!engine.check_path(Path::new("src/api/handler.ts")).is_blocked());
+        assert!(!engine
+            .check_path(Path::new("src/api/handler.ts"))
+            .is_blocked());
     }
 
     // Default verdict for non-blocked, non-warn paths is Unasked
@@ -475,9 +502,9 @@ mod tests {
     fn annotate_mixed_verdicts() {
         let engine = default_engine();
         let diffs = vec![
-            make_diff("src/api/middleware.ts", 10, 3),  // in scope
-            make_diff(".env", 1, 0),                      // blocked
-            make_diff("src/database/pool.rs", 5, 2),     // unasked
+            make_diff("src/api/middleware.ts", 10, 3), // in scope
+            make_diff(".env", 1, 0),                   // blocked
+            make_diff("src/database/pool.rs", 5, 2),   // unasked
         ];
         let annotated = engine.annotate(&diffs, "Fix rate-limit bug in api/middleware.ts");
         assert_eq!(annotated.len(), 3);
@@ -510,7 +537,13 @@ mod tests {
         let engine = engine_with(vec![], vec![], 10, 100);
         let warnings = engine.check_limits(15, 50);
         assert_eq!(warnings.len(), 1);
-        assert!(matches!(warnings[0], LimitWarning::TooManyFiles { actual: 15, limit: 10 }));
+        assert!(matches!(
+            warnings[0],
+            LimitWarning::TooManyFiles {
+                actual: 15,
+                limit: 10
+            }
+        ));
     }
 
     #[test]
@@ -518,7 +551,13 @@ mod tests {
         let engine = engine_with(vec![], vec![], 10, 100);
         let warnings = engine.check_limits(5, 150);
         assert_eq!(warnings.len(), 1);
-        assert!(matches!(warnings[0], LimitWarning::TooManyLines { actual: 150, limit: 100 }));
+        assert!(matches!(
+            warnings[0],
+            LimitWarning::TooManyLines {
+                actual: 150,
+                limit: 100
+            }
+        ));
     }
 
     #[test]
@@ -548,7 +587,13 @@ mod tests {
     fn file_verdict_labels() {
         assert_eq!(FileVerdict::InScope.label(), "IN SCOPE");
         assert_eq!(FileVerdict::Unasked.label(), "UNASKED");
-        assert_eq!(FileVerdict::Blocked { policy: "test".into() }.label(), "BLOCKED");
+        assert_eq!(
+            FileVerdict::Blocked {
+                policy: "test".into()
+            }
+            .label(),
+            "BLOCKED"
+        );
         assert_eq!(FileVerdict::Clean.label(), "CLEAN");
     }
 
@@ -560,4 +605,3 @@ mod tests {
         assert!(!FileVerdict::Clean.is_blocked());
     }
 }
-

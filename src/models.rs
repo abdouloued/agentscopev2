@@ -18,7 +18,8 @@ pub async fn list_models() -> Result<()> {
     let current_provider = &config.judge.provider;
 
     println!();
-    println!("  {} {}",
+    println!(
+        "  {} {}",
         style("agentscope models").cyan().bold(),
         style("— available LLM judges").dim(),
     );
@@ -31,12 +32,16 @@ pub async fn list_models() -> Result<()> {
         JudgeProvider::Openai => "openai",
         JudgeProvider::None => "none",
     };
-    println!("  {}  {} {}",
+    println!(
+        "  {}  {} {}",
         style("▸").color256(135).bold(),
         style("Current:").dim(),
-        style(format!("{} / {}", provider_name, current_model)).white().bold(),
+        style(format!("{} / {}", provider_name, current_model))
+            .white()
+            .bold(),
     );
-    println!("  {}  {} {}",
+    println!(
+        "  {}  {} {}",
         style(" ").dim(),
         style("Endpoint:").dim(),
         style(&config.judge.endpoint).dim(),
@@ -53,26 +58,37 @@ pub async fn list_models() -> Result<()> {
                 p.hint("No models found. Run: ollama pull qwen3.5:2b");
             } else {
                 for m in &models {
-                    let is_current = m.name == *current_model && *current_provider == JudgeProvider::Ollama;
+                    let is_current =
+                        m.name == *current_model && *current_provider == JudgeProvider::Ollama;
                     let marker = if is_current { "●" } else { "○" };
-                    let marker_color = if is_current { style(marker).green().bold() } else { style(marker).dim() };
+                    let marker_color = if is_current {
+                        style(marker).green().bold()
+                    } else {
+                        style(marker).dim()
+                    };
                     let name_style = if is_current {
                         style(&m.name).green().bold()
                     } else {
                         style(&m.name).white()
                     };
 
-                    println!("  {}  {}  {}  {}",
+                    println!(
+                        "  {}  {}  {}  {}",
                         marker_color,
                         name_style,
                         style(&m.size).dim(),
-                        if is_current { style("← active").green() } else { style("").dim() },
+                        if is_current {
+                            style("← active").green()
+                        } else {
+                            style("").dim()
+                        },
                     );
                 }
             }
         }
         Err(e) => {
-            println!("  {}  {}",
+            println!(
+                "  {}  {}",
                 style("✕").red(),
                 style(format!("Could not reach Ollama: {}", e)).red(),
             );
@@ -92,26 +108,72 @@ pub async fn list_models() -> Result<()> {
     let claude_key = std::env::var("ANTHROPIC_API_KEY").is_ok();
     let openai_key = std::env::var("OPENAI_API_KEY").is_ok();
 
-    println!("  {}  {}  {}",
-        if claude_active { style("●").green().bold() } else { style("○").dim() },
-        if claude_active { style("claude").green().bold() } else { style("claude").white() },
-        if claude_key { style("(API key set)").green() } else { style("(set ANTHROPIC_API_KEY)").dim() },
+    println!(
+        "  {}  {}  {}",
+        if claude_active {
+            style("●").green().bold()
+        } else {
+            style("○").dim()
+        },
+        if claude_active {
+            style("claude").green().bold()
+        } else {
+            style("claude").white()
+        },
+        if claude_key {
+            style("(API key set)").green()
+        } else {
+            style("(set ANTHROPIC_API_KEY)").dim()
+        },
     );
-    println!("  {}  {}  {}",
-        if openai_active { style("●").green().bold() } else { style("○").dim() },
-        if openai_active { style("openai").green().bold() } else { style("openai").white() },
-        if openai_key { style("(API key set)").green() } else { style("(set OPENAI_API_KEY)").dim() },
+    println!(
+        "  {}  {}  {}",
+        if openai_active {
+            style("●").green().bold()
+        } else {
+            style("○").dim()
+        },
+        if openai_active {
+            style("openai").green().bold()
+        } else {
+            style("openai").white()
+        },
+        if openai_key {
+            style("(API key set)").green()
+        } else {
+            style("(set OPENAI_API_KEY)").dim()
+        },
     );
 
     println!();
 
     // Usage hints
     println!("  {}", style("── Quick Commands ──").dim());
-    println!("  {}  {}", style("  agentscope model set qwen3.5:2b").cyan(), style("— set default Ollama model").dim());
-    println!("  {}  {}", style("  agentscope model set -p claude claude-sonnet-4-20250514").cyan(), style("— use Claude").dim());
-    println!("  {}  {}", style("  agentscope model test").cyan(), style("— test current model").dim());
-    println!("  {}  {}", style("  agentscope model pull llama3").cyan(), style("— download a model").dim());
-    println!("  {}  {}", style("  agentscope judge -m gemma4:e2b").cyan(), style("— one-off judge with any model").dim());
+    println!(
+        "  {}  {}",
+        style("  agentscope model set qwen3.5:2b").cyan(),
+        style("— set default Ollama model").dim()
+    );
+    println!(
+        "  {}  {}",
+        style("  agentscope model set -p claude claude-sonnet-4-20250514").cyan(),
+        style("— use Claude").dim()
+    );
+    println!(
+        "  {}  {}",
+        style("  agentscope model test").cyan(),
+        style("— test current model").dim()
+    );
+    println!(
+        "  {}  {}",
+        style("  agentscope model pull llama3").cyan(),
+        style("— download a model").dim()
+    );
+    println!(
+        "  {}  {}",
+        style("  agentscope judge -m gemma4:e2b").cyan(),
+        style("— one-off judge with any model").dim()
+    );
     println!();
 
     Ok(())
@@ -165,7 +227,8 @@ pub async fn test_model(model: Option<String>) -> Result<()> {
     let test_model = model.unwrap_or_else(|| config.judge.model.clone());
 
     println!();
-    println!("  {} {} {}",
+    println!(
+        "  {} {} {}",
         style("Testing").dim(),
         style(&test_model).cyan().bold(),
         style("…").dim(),
@@ -183,13 +246,21 @@ pub async fn test_model(model: Option<String>) -> Result<()> {
     });
 
     if test_model.starts_with("qwen3") {
-        body.as_object_mut().unwrap().insert("think".into(), serde_json::json!(false));
+        body.as_object_mut()
+            .unwrap()
+            .insert("think".into(), serde_json::json!(false));
     }
 
     let start = std::time::Instant::now();
     let url = format!("{}/api/generate", config.judge.endpoint);
 
-    match client.post(&url).json(&body).timeout(std::time::Duration::from_secs(30)).send().await {
+    match client
+        .post(&url)
+        .json(&body)
+        .timeout(std::time::Duration::from_secs(30))
+        .send()
+        .await
+    {
         Ok(response) => {
             let elapsed = start.elapsed();
             let raw: serde_json::Value = response.json().await?;
@@ -197,15 +268,15 @@ pub async fn test_model(model: Option<String>) -> Result<()> {
 
             println!();
             p.success(&format!("Response in {:.1}s", elapsed.as_secs_f64()));
-            println!("  {}  {}",
-                style("→").dim(),
-                style(text.trim()).white(),
-            );
+            println!("  {}  {}", style("→").dim(), style(text.trim()).white(),);
 
             // Check if it's valid JSON
-            let clean = text.trim()
-                .trim_start_matches("```json").trim_start_matches("```")
-                .trim_end_matches("```").trim();
+            let clean = text
+                .trim()
+                .trim_start_matches("```json")
+                .trim_start_matches("```")
+                .trim_end_matches("```")
+                .trim();
             if serde_json::from_str::<serde_json::Value>(clean).is_ok() {
                 p.success("Model returns valid JSON ✓");
             } else {
@@ -214,12 +285,16 @@ pub async fn test_model(model: Option<String>) -> Result<()> {
         }
         Err(e) => {
             println!();
-            println!("  {}  {}",
+            println!(
+                "  {}  {}",
                 style("✕").red().bold(),
                 style(format!("Failed: {}", e)).red(),
             );
             p.hint("Make sure Ollama is running: ollama serve");
-            p.hint(&format!("Make sure model is downloaded: ollama pull {}", test_model));
+            p.hint(&format!(
+                "Make sure model is downloaded: ollama pull {}",
+                test_model
+            ));
         }
     }
 
@@ -232,11 +307,15 @@ pub async fn pull_model(model: String) -> Result<()> {
     let p = Printer::new();
 
     println!();
-    println!("  {} {}",
+    println!(
+        "  {} {}",
         style("Pulling").dim(),
         style(&model).cyan().bold(),
     );
-    println!("  {}", style("This may take a while for large models…").dim());
+    println!(
+        "  {}",
+        style("This may take a while for large models…").dim()
+    );
     println!();
 
     // Use ollama CLI for pull (it shows progress)
@@ -271,7 +350,8 @@ pub async fn config_show() -> Result<()> {
     };
 
     println!();
-    println!("  {} {}", 
+    println!(
+        "  {} {}",
         style("agentscope config").cyan().bold(),
         style("— current settings").dim(),
     );
@@ -279,19 +359,27 @@ pub async fn config_show() -> Result<()> {
 
     // Judge section
     println!("  {}", style("── Judge ──").dim());
-    println!("  {}  {}",
+    println!(
+        "  {}  {}",
         style("  enabled   ").dim(),
-        if config.judge.enabled { style("true").green() } else { style("false").red() },
+        if config.judge.enabled {
+            style("true").green()
+        } else {
+            style("false").red()
+        },
     );
-    println!("  {}  {}",
+    println!(
+        "  {}  {}",
         style("  provider  ").dim(),
         style(provider_name).white().bold(),
     );
-    println!("  {}  {}",
+    println!(
+        "  {}  {}",
         style("  model     ").dim(),
         style(&config.judge.model).cyan().bold(),
     );
-    println!("  {}  {}",
+    println!(
+        "  {}  {}",
         style("  endpoint  ").dim(),
         style(&config.judge.endpoint).dim(),
     );
@@ -299,28 +387,40 @@ pub async fn config_show() -> Result<()> {
 
     // Policy section
     println!("  {}", style("── Policy ──").dim());
-    println!("  {}  {}",
+    println!(
+        "  {}  {}",
         style("  blocked   ").dim(),
         style(format!("{} patterns", config.policy.blocked.len())).white(),
     );
     for pattern in &config.policy.blocked {
-        println!("  {}  {}", style("            ").dim(), style(pattern).red());
+        println!(
+            "  {}  {}",
+            style("            ").dim(),
+            style(pattern).red()
+        );
     }
-    println!("  {}  {}",
+    println!(
+        "  {}  {}",
         style("  warn      ").dim(),
         style(format!("{} patterns", config.policy.warn.len())).white(),
     );
     for pattern in &config.policy.warn {
-        println!("  {}  {}", style("            ").dim(), style(pattern).yellow());
+        println!(
+            "  {}  {}",
+            style("            ").dim(),
+            style(pattern).yellow()
+        );
     }
     if config.policy.max_files_changed > 0 {
-        println!("  {}  {}",
+        println!(
+            "  {}  {}",
             style("  max_files ").dim(),
             style(config.policy.max_files_changed.to_string()).white(),
         );
     }
     if config.policy.max_lines_changed > 0 {
-        println!("  {}  {}",
+        println!(
+            "  {}  {}",
             style("  max_lines ").dim(),
             style(config.policy.max_lines_changed.to_string()).white(),
         );
@@ -329,22 +429,61 @@ pub async fn config_show() -> Result<()> {
 
     // Team section
     println!("  {}", style("── Team ──").dim());
-    println!("  {}  {}",
+    println!(
+        "  {}  {}",
         style("  enabled   ").dim(),
-        if config.team.enabled { style("true").green() } else { style("false").dim() },
+        if config.team.enabled {
+            style("true").green()
+        } else {
+            style("false").dim()
+        },
     );
-    println!("  {}  {}",
+    println!(
+        "  {}  {}",
         style("  share_logs").dim(),
-        if config.team.share_logs { style("true").green() } else { style("false").dim() },
+        if config.team.share_logs {
+            style("true").green()
+        } else {
+            style("false").dim()
+        },
+    );
+    println!();
+
+    // Agents section
+    println!("  {}", style("── Agents ──").dim());
+    println!(
+        "  {}  {}",
+        style("  auto_detect").dim(),
+        if config.agents.auto_detect {
+            style("true").green()
+        } else {
+            style("false").dim()
+        },
+    );
+    println!(
+        "  {}  {}",
+        style("  auto_attach").dim(),
+        if config.agents.auto_attach {
+            style("true").green()
+        } else {
+            style("false").dim()
+        },
+    );
+    println!(
+        "  {}  {}",
+        style("  preferred  ").dim(),
+        style(config.agents.preferred.join(", ")).white(),
     );
     println!();
 
     // Config file location
-    println!("  {}  {}",
+    println!(
+        "  {}  {}",
         style("config file").dim(),
         style("agentscope.yaml").cyan(),
     );
-    println!("  {}  {}",
+    println!(
+        "  {}  {}",
         style("edit with  ").dim(),
         style("agentscope config edit").cyan(),
     );
@@ -369,7 +508,10 @@ pub async fn config_set(key: String, value: String) -> Result<()> {
                 "claude" => JudgeProvider::Claude,
                 "openai" => JudgeProvider::Openai,
                 "none" => JudgeProvider::None,
-                _ => anyhow::bail!("Unknown provider: {}. Use: ollama, claude, openai, none", value),
+                _ => anyhow::bail!(
+                    "Unknown provider: {}. Use: ollama, claude, openai, none",
+                    value
+                ),
             };
             p.success(&format!("judge.provider = {}", value));
         }
@@ -378,33 +520,50 @@ pub async fn config_set(key: String, value: String) -> Result<()> {
             p.success(&format!("judge.endpoint = {}", value));
         }
         "judge.enabled" => {
-            config.judge.enabled = value.parse::<bool>()
+            config.judge.enabled = value
+                .parse::<bool>()
                 .map_err(|_| anyhow::anyhow!("Expected true or false"))?;
             p.success(&format!("judge.enabled = {}", value));
         }
         "policy.max_files" | "max_files" => {
-            config.policy.max_files_changed = value.parse()
+            config.policy.max_files_changed = value
+                .parse()
                 .map_err(|_| anyhow::anyhow!("Expected a number"))?;
             p.success(&format!("policy.max_files_changed = {}", value));
         }
         "policy.max_lines" | "max_lines" => {
-            config.policy.max_lines_changed = value.parse()
+            config.policy.max_lines_changed = value
+                .parse()
                 .map_err(|_| anyhow::anyhow!("Expected a number"))?;
             p.success(&format!("policy.max_lines_changed = {}", value));
         }
         "team.enabled" => {
-            config.team.enabled = value.parse::<bool>()
+            config.team.enabled = value
+                .parse::<bool>()
                 .map_err(|_| anyhow::anyhow!("Expected true or false"))?;
             p.success(&format!("team.enabled = {}", value));
         }
         "team.share_logs" => {
-            config.team.enabled = value.parse::<bool>()
+            config.team.share_logs = value
+                .parse::<bool>()
                 .map_err(|_| anyhow::anyhow!("Expected true or false"))?;
             p.success(&format!("team.share_logs = {}", value));
         }
+        "agents.auto_detect" => {
+            config.agents.auto_detect = value
+                .parse::<bool>()
+                .map_err(|_| anyhow::anyhow!("Expected true or false"))?;
+            p.success(&format!("agents.auto_detect = {}", value));
+        }
+        "agents.auto_attach" => {
+            config.agents.auto_attach = value
+                .parse::<bool>()
+                .map_err(|_| anyhow::anyhow!("Expected true or false"))?;
+            p.success(&format!("agents.auto_attach = {}", value));
+        }
         _ => {
             anyhow::bail!(
-                "Unknown config key: {}\n\nAvailable keys:\n  model, provider, endpoint, judge.enabled\n  max_files, max_lines\n  team.enabled, team.share_logs",
+                "Unknown config key: {}\n\nAvailable keys:\n  model, provider, endpoint, judge.enabled\n  max_files, max_lines\n  team.enabled, team.share_logs\n  agents.auto_detect, agents.auto_attach",
                 key
             );
         }
@@ -463,20 +622,24 @@ async fn fetch_ollama_models(endpoint: &str) -> Result<Vec<OllamaModel>> {
     let client = reqwest::Client::new();
     let url = format!("{}/api/tags", endpoint);
 
-    let response = client.get(&url)
+    let response = client
+        .get(&url)
         .timeout(std::time::Duration::from_secs(5))
         .send()
         .await?;
 
     let data: serde_json::Value = response.json().await?;
-    let models = data["models"].as_array()
+    let models = data["models"]
+        .as_array()
         .map(|arr| {
-            arr.iter().map(|m| {
-                let name = m["name"].as_str().unwrap_or("unknown").to_string();
-                let size_bytes = m["size"].as_u64().unwrap_or(0);
-                let size = format_size(size_bytes);
-                OllamaModel { name, size }
-            }).collect()
+            arr.iter()
+                .map(|m| {
+                    let name = m["name"].as_str().unwrap_or("unknown").to_string();
+                    let size_bytes = m["size"].as_u64().unwrap_or(0);
+                    let size = format_size(size_bytes);
+                    OllamaModel { name, size }
+                })
+                .collect()
         })
         .unwrap_or_default();
 
@@ -500,7 +663,8 @@ fn write_config(config: &config::Config) -> Result<()> {
     // Preserve header comment if file exists
     let header = if std::path::Path::new(path).exists() {
         let existing = std::fs::read_to_string(path)?;
-        existing.lines()
+        existing
+            .lines()
             .take_while(|l| l.starts_with('#'))
             .collect::<Vec<_>>()
             .join("\n")
