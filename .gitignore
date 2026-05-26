@@ -5,6 +5,10 @@ Cargo.lock
 # AgentScope session data
 .agentscope/
 
+# Internal planning docs
+GOAL.md
+agentscope_tui_redesign_plan.md
+
 # macOS
 .DS_Store
 **/.DS_Store

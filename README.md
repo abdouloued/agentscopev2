@@ -1,5 +1,9 @@
 # AgentScope
 
+> **⚠️ Early development — currently tested with [Ollama](https://ollama.com) and local models only.**
+> Multi-provider judge support (Claude, OpenAI, Gemini, OpenRouter) is implemented but undertested.
+> Expect rough edges; contributions and bug reports are welcome.
+
 **AgentScope is a Rust CLI cockpit for AI coding agents.** It records or detects a mission, watches Git changes live, applies deterministic policy, and optionally asks a judge model whether the diff still matches the mission — all inside a polished terminal UI.
 
 AgentScope does not replace Codex, Claude Code, Cursor, Gemini CLI, OpenCode, or Copilot. It sits beside them as a repo safety layer and real-time audit cockpit.

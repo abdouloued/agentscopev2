@@ -1,7 +1,6 @@
-# AgentScope plugin · cursor
+# AgentScope skill · cursor
 
-AgentScope is a scope firewall and audit cockpit for AI coding agents.
-It checks whether your Git changes match the active mission.
+This file instructs `cursor` to use AgentScope as a scope firewall before and after making changes.
 
 ## When to run AgentScope
 
