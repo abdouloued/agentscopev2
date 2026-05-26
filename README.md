@@ -1,5 +1,7 @@
 # AgentScope
 
+**[Website](https://abdouloued.github.io/agentscopev2)** · **[crates.io](https://crates.io/crates/agentscope)** · **[GitHub](https://github.com/abdouloued/agentscopev2)**
+
 > **⚠️ Early development — currently tested with [Ollama](https://ollama.com) and local models only.**
 > Multi-provider judge support (Claude, OpenAI, Gemini, OpenRouter) is implemented but undertested.
 > Expect rough edges; contributions and bug reports are welcome.
