@@ -1125,6 +1125,7 @@
     <a href="#plugins">Plugins</a>
     <a href="#judge">Judge</a>
     <a href="#config">Config</a>
+    <a href="#contributing">Contribute</a>
     <a href="#launch">Roadmap</a>
     <button class="nav-cmd-btn" id="navCmdBtn" type="button">/ commands <span class="cmd-k-badge">⌘K</span></button>
     <a href="https://github.com/abdouloued/agentscopev2" class="nav-badge">GitHub</a>
@@ -2357,7 +2358,72 @@
     </div>
 
     <div style="margin-top:20px;padding:16px 20px;background:var(--surface);border:1px solid rgba(184,245,62,0.15);border-radius:8px;font-size:13px;color:var(--text-muted);line-height:1.7;">
-      <strong style="color:var(--text);font-weight:500;">Requires:</strong> Rust toolchain (<code>rustup</code>), Git. Run <code>cargo test</code> to verify your build. Contributions welcome — see <a href="https://github.com/abdouloued/agentscopev2/blob/main/CONTRIBUTING.md" style="color:var(--lime);text-decoration:none;">CONTRIBUTING.md</a>.
+      <strong style="color:var(--text);font-weight:500;">Requires:</strong> Rust 1.75+ (<code>rustup update stable</code>), Git.
+      Run <code>cargo test</code> to verify your build.
+    </div>
+  </div>
+</section>
+
+<hr class="divider">
+
+<!-- CONTRIBUTING -->
+<section id="contributing">
+  <div class="container">
+    <p class="section-label">Open Source</p>
+    <h2 class="section-title reveal">Early dev · Ollama-tested.<br><em>Contributions welcome.</em></h2>
+    <p class="section-sub">AgentScope is actively developed and currently tested with <strong style="color:var(--lime)">Ollama and local models</strong>. Multi-provider cloud support (Claude, OpenAI, Gemini) is implemented but undertested. Rough edges exist — bug reports and PRs are genuinely appreciated.</p>
+
+    <div class="local-dev-grid reveal" style="margin-top:40px;">
+      <div>
+        <h3 style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:16px;letter-spacing:0.05em;text-transform:uppercase;">Good first contributions</h3>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <div style="padding:12px 16px;background:var(--surface);border:1px solid var(--border);border-radius:6px;">
+            <div style="font-size:12px;font-weight:600;color:var(--lime);margin-bottom:4px;">Agent readers</div>
+            <div style="font-size:12px;color:var(--text-muted);">Add Aider, Continue, Windsurf — or update changed log formats for Claude/Codex/Cursor</div>
+          </div>
+          <div style="padding:12px 16px;background:var(--surface);border:1px solid var(--border);border-radius:6px;">
+            <div style="font-size:12px;font-weight:600;color:var(--lime);margin-bottom:4px;">Judge providers</div>
+            <div style="font-size:12px;color:var(--text-muted);">Groq, Mistral, LM Studio, llama.cpp — currently Ollama is the only well-tested path</div>
+          </div>
+          <div style="padding:12px 16px;background:var(--surface);border:1px solid var(--border);border-radius:6px;">
+            <div style="font-size:12px;font-weight:600;color:var(--lime);margin-bottom:4px;">Launcher verification</div>
+            <div style="font-size:12px;color:var(--text-muted);">Test <code>ollama launch</code> commands on Linux/Windows. Report what works.</div>
+          </div>
+          <div style="padding:12px 16px;background:var(--surface);border:1px solid var(--border);border-radius:6px;">
+            <div style="font-size:12px;font-weight:600;color:var(--lime);margin-bottom:4px;">Tests &amp; docs</div>
+            <div style="font-size:12px;color:var(--text-muted);">More coverage for policy engine, session lifecycle, and real-world mission extraction edge cases</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="terminal" style="box-shadow:none;">
+        <div class="terminal-bar">
+          <div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div>
+          <span class="terminal-title">Fork → build → PR</span>
+        </div>
+        <div class="terminal-body">
+<span class="t-line t-muted"># Fork on GitHub, then:</span>
+<span class="t-line"><span class="t-cmd">git clone</span> <span class="t-info">https://github.com/YOUR_USERNAME/agentscopev2.git</span></span>
+<span class="t-line"><span class="t-cmd">cd</span> <span class="t-warn">agentscopev2</span></span>
+<span class="t-line">&nbsp;</span>
+<span class="t-line t-muted"># Build and test</span>
+<span class="t-line"><span class="t-cmd">cargo build</span></span>
+<span class="t-line"><span class="t-cmd">cargo test</span></span>
+<span class="t-line"><span class="t-cmd">cargo clippy</span> <span class="t-info">-- -D warnings</span></span>
+<span class="t-line"><span class="t-cmd">cargo fmt</span></span>
+<span class="t-line">&nbsp;</span>
+<span class="t-line t-muted"># Install locally to test end-to-end</span>
+<span class="t-line"><span class="t-cmd">cargo install</span> <span class="t-info">--path . --force</span></span>
+<span class="t-line">&nbsp;</span>
+<span class="t-line t-muted"># Open a PR against main</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:12px;margin-top:28px;flex-wrap:wrap;">
+      <a href="https://github.com/abdouloued/agentscopev2/blob/main/CONTRIBUTING.md" class="btn-primary" style="font-size:13px;padding:10px 20px;">Read CONTRIBUTING.md</a>
+      <a href="https://github.com/abdouloued/agentscopev2/issues/new" class="btn-ghost" style="font-size:13px;padding:10px 20px;">Open an issue</a>
+      <a href="https://github.com/abdouloued/agentscopev2" class="btn-ghost" style="font-size:13px;padding:10px 20px;">Star on GitHub ⭐</a>
     </div>
   </div>
 </section>

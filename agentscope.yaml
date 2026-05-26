@@ -1,7 +1,5 @@
 version: 1
 policy:
-  allow:
-  - src/chat.rs
   blocked:
   - .env
   - .env.*
@@ -12,13 +10,12 @@ policy:
   - '**/*.key'
   - src/auth/**
   - '**/migrations/**'
-  - src/judge.rs
   warn:
   - package-lock.json
   - yarn.lock
   - Cargo.lock
   - '**/config/**'
-  max_lines_changed: 0
+  max_lines_changed: 800
   max_files_changed: 20
 judge:
   enabled: true
