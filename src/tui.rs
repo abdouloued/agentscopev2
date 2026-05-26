@@ -588,7 +588,7 @@ async fn run_app<B: ratatui::backend::Backend>(
         }
 
         sync_judge_display(&config, &mut state);
-        if state.refresh_count == 1 || state.refresh_count.is_multiple_of(40) {
+        if state.refresh_count == 1 || state.refresh_count % 40 == 0 {
             refresh_agent_missions(&config, &mut state);
         }
 
@@ -1217,7 +1217,7 @@ fn render_header(
     };
 
     // Pulsing LIVE dot: alternates filled/dim every ~500ms (3 ticks at 150ms)
-    let live_dot = if (state.refresh_count / 3).is_multiple_of(2) {
+    let live_dot = if (state.refresh_count / 3) % 2 == 0 {
         "● "
     } else {
         "○ "
