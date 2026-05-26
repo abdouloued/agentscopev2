@@ -1861,6 +1861,138 @@
       </div>
     </div>
 
+    <!-- How Claude Code and Codex use the plugin -->
+    <div style="margin-top:48px;">
+      <p style="font-family:var(--mono);font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:20px;">How the agent uses it — after install</p>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+
+        <!-- Claude Code -->
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;">
+          <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;">
+            <span style="font-size:18px;">⬛</span>
+            <div>
+              <p style="font-size:13px;font-weight:600;color:var(--text);">Claude Code</p>
+              <p style="font-size:11px;color:var(--text-dim);">Plugin marketplace · MCP tools · Skills</p>
+            </div>
+          </div>
+          <div style="padding:20px;">
+            <p style="font-size:12px;color:var(--text-muted);margin-bottom:14px;line-height:1.6;">Once installed, Claude Code loads <code>CLAUDE.md</code> automatically at context start. The plugin appears in <code>/plugins → Installed</code> and MCP tools are available every turn.</p>
+
+            <p style="font-family:var(--mono);font-size:10px;color:var(--lime);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">What Claude sees in /plugins</p>
+            <div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:12px 14px;margin-bottom:16px;">
+              <p style="font-family:var(--mono);font-size:11px;color:var(--text-muted);line-height:1.8;">
+                Installed › <span style="color:var(--lime);">agentscope</span> <span style="color:var(--text-dim);">@ agentscopev2  v1.0.0</span><br>
+                Skills: scope-guard · scope-check · scope-firewall<br>
+                MCP: <span style="color:var(--amber);">agentscope</span> (5 tools)
+              </p>
+            </div>
+
+            <p style="font-family:var(--mono);font-size:10px;color:var(--lime);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">MCP tool calls Claude makes</p>
+            <div class="terminal" style="box-shadow:none;margin-bottom:16px;">
+              <div class="terminal-bar">
+                <div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div>
+                <span class="terminal-title">Claude Code — each turn</span>
+              </div>
+              <div class="terminal-body" style="font-size:11px;">
+<span class="t-line t-muted"># At session start — Claude calls automatically:</span>
+<span class="t-line"><span class="t-info">mcp__agentscope__scope_status</span>({})</span>
+<span class="t-line t-muted">→ Session: 01KSGXT · Agent: claude-code · Mission: "Fix auth bug"</span>
+<span class="t-line">&nbsp;</span>
+<span class="t-line t-muted"># Before each commit or risky edit:</span>
+<span class="t-line"><span class="t-info">mcp__agentscope__scope_check</span>({})</span>
+<span class="t-line t-muted">→ 3 expected · 1 suspicious · 0 blocked</span>
+<span class="t-line">&nbsp;</span>
+<span class="t-line t-muted"># To register a new mission mid-session:</span>
+<span class="t-line"><span class="t-info">mcp__agentscope__scope_start</span>({mission: "Refactor login flow"})</span>
+              </div>
+            </div>
+
+            <p style="font-family:var(--mono);font-size:10px;color:var(--lime);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">Skill: scope-guard (auto-loads)</p>
+            <div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:12px 14px;">
+              <p style="font-size:11px;color:var(--text-muted);line-height:1.7;">The <strong style="color:var(--text);">scope-guard</strong> skill injects these rules into every Claude turn:<br>
+              • Run <code>scope_status</code> before starting any task<br>
+              • Run <code>scope_check</code> before every commit<br>
+              • If blocked files appear, stop and explain before proceeding<br>
+              • Never edit files in <code>blocked:</code> paths without explicit approval</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Codex -->
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;">
+          <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;">
+            <span style="font-size:18px;">🟦</span>
+            <div>
+              <p style="font-size:13px;font-weight:600;color:var(--text);">Codex</p>
+              <p style="font-size:11px;color:var(--text-dim);">AGENTS.md · MCP via .mcp.json</p>
+            </div>
+          </div>
+          <div style="padding:20px;">
+            <p style="font-size:12px;color:var(--text-muted);margin-bottom:14px;line-height:1.6;">Codex reads <code>AGENTS.md</code> at startup and loads MCP servers from <code>.mcp.json</code>. AgentScope tools appear in Codex's tool list with no extra configuration.</p>
+
+            <p style="font-family:var(--mono);font-size:10px;color:var(--lime);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">What Codex reads from AGENTS.md</p>
+            <div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:12px 14px;margin-bottom:16px;font-family:var(--mono);font-size:11px;color:var(--text-muted);line-height:1.8;">
+              <span style="color:var(--lime);">## AgentScope</span><br>
+              You have an AgentScope scope firewall active.<br>
+              — Run <code>agentscope status</code> before starting any task.<br>
+              — Run <code>agentscope check</code> before every git commit.<br>
+              — Do NOT edit files in <code>blocked:</code> paths.<br>
+              — If suspicious files appear, explain before proceeding.
+            </div>
+
+            <p style="font-family:var(--mono);font-size:10px;color:var(--lime);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">MCP tools Codex can call</p>
+            <div class="terminal" style="box-shadow:none;margin-bottom:16px;">
+              <div class="terminal-bar">
+                <div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div>
+                <span class="terminal-title">Codex — tool calls</span>
+              </div>
+              <div class="terminal-body" style="font-size:11px;">
+<span class="t-line t-muted"># Codex loads .mcp.json → starts agentscope mcp</span>
+<span class="t-line"><span class="t-cmd">agentscope mcp</span>  <span class="t-muted"># persistent stdio JSON-RPC server</span></span>
+<span class="t-line">&nbsp;</span>
+<span class="t-line t-muted"># Tools available to Codex via MCP:</span>
+<span class="t-line"><span class="t-info">scope_status</span>   <span class="t-muted">→ active session + mission</span></span>
+<span class="t-line"><span class="t-info">scope_check</span>    <span class="t-muted">→ git diff + policy verdicts</span></span>
+<span class="t-line"><span class="t-info">scope_start</span>    <span class="t-muted">→ register new mission</span></span>
+<span class="t-line"><span class="t-info">agent_detect</span>   <span class="t-muted">→ list active AI agents</span></span>
+<span class="t-line"><span class="t-info">agent_context</span>  <span class="t-muted">→ infer mission from context</span></span>
+              </div>
+            </div>
+
+            <p style="font-family:var(--mono);font-size:10px;color:var(--lime);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">MCP config written to .mcp.json</p>
+            <div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:12px 14px;">
+              <p style="font-family:var(--mono);font-size:11px;color:var(--text-muted);line-height:1.8;">
+                {<br>
+                &nbsp;&nbsp;<span style="color:var(--amber);">"mcpServers"</span>: {<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:var(--lime);">"agentscope"</span>: {<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:var(--amber);">"command"</span>: <span style="color:var(--text);">"agentscope"</span>,<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:var(--amber);">"args"</span>: [<span style="color:var(--text);">"mcp"</span>]<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;}<br>
+                &nbsp;&nbsp;}<br>
+                }
+              </p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Pre-commit hook — always runs regardless of agent -->
+      <div style="margin-top:20px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px 24px;display:flex;gap:20px;align-items:flex-start;">
+        <div style="flex-shrink:0;width:36px;height:36px;background:rgba(163,230,53,0.1);border:1px solid rgba(163,230,53,0.3);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;">🔒</div>
+        <div>
+          <p style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px;">Pre-commit hook — the safety net that always runs</p>
+          <p style="font-size:12px;color:var(--text-muted);line-height:1.6;margin-bottom:10px;">Both Claude Code and Codex commit via <code>git commit</code>. The hook intercepts every commit regardless of which agent issued it — no agent cooperation required.</p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <span style="font-family:var(--mono);font-size:11px;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:3px 10px;color:var(--lime);">agentscope hook install</span>
+            <span style="font-size:11px;color:var(--text-dim);padding:3px 0;">→ writes to</span>
+            <span style="font-family:var(--mono);font-size:11px;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:3px 10px;color:var(--text-muted);">.git/hooks/pre-commit</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- What the plugin contains -->
     <div style="margin-top:32px;display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:18px;">
