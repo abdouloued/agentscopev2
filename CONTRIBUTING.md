@@ -171,7 +171,8 @@ chore: remove stray root config.rs
 
 ## License
 
-By contributing, you agree your contributions will be licensed under the [MIT License](LICENSE).
+By contributing, you agree your contributions will be licensed under the
+[MIT + Commons Clause License](LICENSE) that governs this project.
 
 ## Code of conduct
 

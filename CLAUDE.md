@@ -258,7 +258,7 @@ cargo build --release  # Production binary
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT + Commons Clause. See [LICENSE](LICENSE).
 
 ## Resources
 

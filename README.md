@@ -554,4 +554,5 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for contributor workflow and project stru
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT + Commons Clause. Free to use and modify; commercial resale/hosting of
+AgentScope as a service is not permitted. See [LICENSE](LICENSE).

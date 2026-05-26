@@ -1214,7 +1214,7 @@ fn register_claude_code_plugin() -> Result<()> {
         .join("agentscope")
         .join("1.0.0");
 
-    const PLUGIN_JSON: &str = r#"{"name":"agentscope","version":"1.0.0","description":"AgentScope scope firewall for AI coding agents.","repository":"https://github.com/abdouloued/agentscopev2","license":"MIT","skills":"./skills/","mcpServers":"./.mcp.json","keywords":["scope","policy","git","ai-agent","firewall","audit","mission","agentscope"]}"#;
+    const PLUGIN_JSON: &str = r#"{"name":"agentscope","version":"1.0.0","description":"AgentScope scope firewall for AI coding agents.","repository":"https://github.com/abdouloued/agentscopev2","license":"MIT+Commons-Clause","skills":"./skills/","mcpServers":"./.mcp.json","keywords":["scope","policy","git","ai-agent","firewall","audit","mission","agentscope"]}"#;
     const MCP_JSON: &str =
         r#"{"mcpServers":{"agentscope":{"command":"agentscope","args":["mcp"],"env":{}}}}"#;
     const CLAUDE_MD: &str = include_str!("../plugins/agentscope/CLAUDE.md");
