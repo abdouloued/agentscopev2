@@ -35,7 +35,22 @@ use crate::theme::Theme;
 
 const POLL_MS: u64 = 150;
 
+pub fn is_tty() -> bool {
+    use std::io::IsTerminal;
+    std::io::stdout().is_terminal()
+}
+
 pub async fn run_watch() -> Result<()> {
+    if !is_tty() {
+        anyhow::bail!(
+            "agentscope watch requires a real terminal (TTY).\n\
+             You appear to be running inside a sandboxed or piped environment.\n\n\
+             Alternatives:\n  \
+             agentscope monitor      — plain-text polling monitor (works everywhere)\n  \
+             agentscope check        — one-shot policy check\n  \
+             agentscope diff --problems — quick diff, problems only"
+        );
+    }
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;

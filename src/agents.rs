@@ -245,7 +245,45 @@ pub async fn monitor_command(agent: String, auto_attach: bool) -> Result<()> {
         }
     }
 
-    crate::tui::run_watch().await
+    // If a real TTY is available, open the full TUI dashboard
+    if crate::tui::is_tty() {
+        return crate::tui::run_watch().await;
+    }
+
+    // Non-TTY fallback: plain-text polling monitor
+    println!();
+    println!("  monitoring  (plain-text mode — no TTY detected)");
+    println!("  press ctrl-c to stop");
+    println!();
+
+    let mut last_hash: Option<String> = None;
+    loop {
+        let repo = crate::git::open_repo();
+        if let Ok(repo) = repo {
+            let wt = crate::git::working_tree_diff(&repo);
+            if let Ok(wt) = wt {
+                let hash = format!("{:?}", wt.files.len());
+                if Some(&hash) != last_hash.as_ref() {
+                    last_hash = Some(hash);
+                    let session = crate::session::load_active_session().ok();
+                    let mission = session
+                        .as_ref()
+                        .map(|s| s.mission.as_str())
+                        .unwrap_or("<no active mission>");
+                    let policy = crate::policy::PolicyEngine::from_config(&config.policy)
+                        .unwrap_or_else(|_| crate::policy::PolicyEngine::from_config(&crate::config::PolicyConfig::default()).unwrap());
+                    let annotated = policy.annotate(&wt.files, mission);
+                    let expected = annotated.iter().filter(|f| matches!(f.verdict, crate::policy::FileVerdict::InScope)).count();
+                    let suspicious = annotated.iter().filter(|f| matches!(f.verdict, crate::policy::FileVerdict::Unasked)).count();
+                    let blocked = annotated.iter().filter(|f| matches!(f.verdict, crate::policy::FileVerdict::Blocked { .. })).count();
+                    let ts = chrono::Utc::now().format("%H:%M:%S");
+                    println!("  [{}]  {} expected  {} suspicious  {} blocked  |  mission: {}",
+                        ts, expected, suspicious, blocked, mission);
+                }
+            }
+        }
+        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+    }
 }
 
 pub async fn skills_command(action: crate::cli::IntegrationAction) -> Result<()> {
@@ -257,61 +295,217 @@ pub async fn plugins_command(action: crate::cli::IntegrationAction) -> Result<()
 }
 
 pub async fn mcp_command() -> Result<()> {
-    use std::io::{self, Read};
-    let mut input = String::new();
-    io::stdin().read_to_string(&mut input)?;
-    if input.trim().is_empty() {
-        println!(
-            "{}",
-            serde_json::json!({
+    use std::io::{self, BufRead, Write};
+
+    let stdin = io::stdin();
+    let stdout = io::stdout();
+    let mut out = io::BufWriter::new(stdout.lock());
+
+    for line in stdin.lock().lines() {
+        let line = match line {
+            Ok(l) => l,
+            Err(_) => break,
+        };
+        let line = line.trim().to_string();
+        if line.is_empty() {
+            continue;
+        }
+
+        let request: serde_json::Value = match serde_json::from_str(&line) {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+
+        let method = request.get("method").and_then(|v| v.as_str()).unwrap_or("");
+        // Notifications have no "id" — skip silently
+        let id = match request.get("id").cloned() {
+            Some(id) => id,
+            None => continue,
+        };
+
+        let response = match method {
+            "initialize" => serde_json::json!({
                 "jsonrpc": "2.0",
+                "id": id,
+                "result": {
+                    "protocolVersion": "2024-11-05",
+                    "capabilities": { "tools": {} },
+                    "serverInfo": { "name": "agentscope", "version": "0.1.0" }
+                }
+            }),
+
+            "tools/list" => serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": id,
                 "result": {
                     "tools": [
-                        "scope_status",
-                        "scope_check",
-                        "scope_start",
-                        "agent_detect",
-                        "agent_context",
-                        "agent_attach"
+                        {
+                            "name": "scope_status",
+                            "description": "Get the active AgentScope session — mission, agent name, session ID, and start time.",
+                            "inputSchema": { "type": "object", "properties": {} }
+                        },
+                        {
+                            "name": "scope_check",
+                            "description": "Run a scope compliance check on the current git working tree. Returns a summary of EXPECTED / SUSPICIOUS / BLOCKED file verdicts.",
+                            "inputSchema": { "type": "object", "properties": {} }
+                        },
+                        {
+                            "name": "scope_start",
+                            "description": "Start a new AgentScope monitoring session with a mission description.",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "mission": { "type": "string", "description": "The task or mission description." },
+                                    "agent": { "type": "string", "description": "Agent hint: codex, claude, auto, etc." }
+                                },
+                                "required": ["mission"]
+                            }
+                        },
+                        {
+                            "name": "agent_detect",
+                            "description": "Detect which AI coding agents are currently active in this repository.",
+                            "inputSchema": { "type": "object", "properties": {} }
+                        },
+                        {
+                            "name": "agent_context",
+                            "description": "Get the latest mission context for a specific agent.",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "agent": { "type": "string", "description": "Agent name or 'auto'." }
+                                }
+                            }
+                        }
                     ]
                 }
-            })
-        );
-        return Ok(());
+            }),
+
+            "tools/call" => {
+                let tool = request
+                    .pointer("/params/name")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                let args = request
+                    .pointer("/params/arguments")
+                    .cloned()
+                    .unwrap_or(serde_json::json!({}));
+
+                let text = match tool {
+                    "scope_status" => match session::load_active_session() {
+                        Ok(s) => format!(
+                            "Session: {}\nAgent:   {}\nMission: {}\nStarted: {}",
+                            &s.id[..12.min(s.id.len())],
+                            s.agent,
+                            s.mission,
+                            s.started_at
+                        ),
+                        Err(_) => {
+                            "No active session.\nRun: agentscope start \"<your mission>\"".to_string()
+                        }
+                    },
+
+                    "scope_check" => {
+                        match session::load_active_session() {
+                            Ok(s) => {
+                                let cfg = config::load_or_default();
+                                match git::open_repo().and_then(|repo| git::working_tree_diff(&repo)) {
+                                    Ok(wt) => {
+                                        let policy = match crate::policy::PolicyEngine::from_config(&cfg.policy) {
+                                            Ok(p) => p,
+                                            Err(e) => return Err(e),
+                                        };
+                                        let annotated = policy.annotate(&wt.files, &s.mission);
+                                        let expected = annotated.iter().filter(|f| f.verdict.is_accepted()).count();
+                                        let suspicious = annotated.iter().filter(|f| f.verdict == crate::policy::FileVerdict::Unasked).count();
+                                        let blocked = annotated.iter().filter(|f| f.verdict.is_blocked()).count();
+                                        format!(
+                                            "Mission: {}\nFiles: {} total  |  {} expected  |  {} suspicious  |  {} blocked",
+                                            s.mission,
+                                            annotated.len(),
+                                            expected,
+                                            suspicious,
+                                            blocked
+                                        )
+                                    }
+                                    Err(e) => format!("Git diff error: {}", e),
+                                }
+                            }
+                            Err(_) => "No active session. Run: agentscope start \"<mission>\"".to_string(),
+                        }
+                    }
+
+                    "scope_start" => {
+                        let mission = args.get("mission").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
+                        let agent = args.get("agent").and_then(|v| v.as_str()).unwrap_or("auto");
+                        if mission.is_empty() {
+                            "Error: 'mission' is required.".to_string()
+                        } else {
+                            format!(
+                                "Run in your terminal:\n  agentscope start \"{}\" --agent {}",
+                                mission, agent
+                            )
+                        }
+                    }
+
+                    "agent_detect" => match detect_all(&config::load_or_default()) {
+                        Ok(contexts) => {
+                            let found: Vec<_> = contexts.iter().filter(|c| c.found()).collect();
+                            if found.is_empty() {
+                                "No active agent sessions detected.".to_string()
+                            } else {
+                                found
+                                    .iter()
+                                    .map(|c| {
+                                        format!(
+                                            "{}  confidence={:.0}%  mission={}",
+                                            c.agent,
+                                            c.confidence * 100.0,
+                                            c.mission.as_deref().unwrap_or("(none)")
+                                        )
+                                    })
+                                    .collect::<Vec<_>>()
+                                    .join("\n")
+                            }
+                        }
+                        Err(e) => format!("Detection error: {}", e),
+                    },
+
+                    "agent_context" => {
+                        let agent = args.get("agent").and_then(|v| v.as_str()).unwrap_or("auto");
+                        match select_context(&config::load_or_default(), agent) {
+                            Ok(c) => format!(
+                                "Agent:      {}\nMission:    {}\nConfidence: {:.0}%\nTimestamp:  {}",
+                                c.agent,
+                                c.mission.as_deref().unwrap_or("(none)"),
+                                c.confidence * 100.0,
+                                c.timestamp.as_deref().unwrap_or("(unknown)")
+                            ),
+                            Err(e) => format!("Error: {}", e),
+                        }
+                    }
+
+                    _ => format!("Unknown tool: {}", tool),
+                };
+
+                serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "id": id,
+                    "result": { "content": [{ "type": "text", "text": text }] }
+                })
+            }
+
+            _ => serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": id,
+                "error": { "code": -32601, "message": format!("Method not found: {}", method) }
+            }),
+        };
+
+        let resp = serde_json::to_string(&response)?;
+        writeln!(out, "{}", resp)?;
+        out.flush()?;
     }
 
-    let request: serde_json::Value = serde_json::from_str(&input)?;
-    let id = request
-        .get("id")
-        .cloned()
-        .unwrap_or(serde_json::Value::Null);
-    let method = request.get("method").and_then(|v| v.as_str()).unwrap_or("");
-    let result = match method {
-        "agent_detect" => serde_json::to_value(detect_all(&config::load_or_default())?)?,
-        "agent_context" => {
-            let agent = request
-                .pointer("/params/agent")
-                .and_then(|v| v.as_str())
-                .unwrap_or("auto");
-            serde_json::to_value(select_context(&config::load_or_default(), agent)?)?
-        }
-        "scope_status" => match session::load_active_session() {
-            Ok(session) => serde_json::to_value(session)?,
-            Err(e) => serde_json::json!({ "error": e.to_string() }),
-        },
-        "scope_check" => {
-            serde_json::json!({ "hint": "run agentscope check for terminal policy output" })
-        }
-        "scope_start" => serde_json::json!({ "hint": "run agentscope start \"mission\"" }),
-        "agent_attach" => {
-            serde_json::json!({ "hint": "run agentscope attach --agent auto --apply" })
-        }
-        _ => serde_json::json!({ "error": format!("unknown method: {}", method) }),
-    };
-    println!(
-        "{}",
-        serde_json::json!({ "jsonrpc": "2.0", "id": id, "result": result })
-    );
     Ok(())
 }
 
@@ -982,51 +1176,86 @@ fn register_claude_code_plugin() -> Result<()> {
     let claude_dir = expand_path(&claude_base);
     let plugins_dir = claude_dir.join("plugins");
 
-    // ── 1. Write plugin files to cache ──────────────────────────────────────
+    let mkt_dir = plugins_dir.join("marketplaces").join("agentscopev2");
     let cache_dir = plugins_dir
         .join("cache")
         .join("agentscopev2")
         .join("agentscope")
         .join("1.0.0");
-    std::fs::create_dir_all(cache_dir.join(".claude-plugin"))?;
-    std::fs::create_dir_all(cache_dir.join("skills").join("scope-guard"))?;
-    std::fs::create_dir_all(cache_dir.join("skills").join("scope-check"))?;
 
-    std::fs::write(
-        cache_dir.join(".claude-plugin").join("plugin.json"),
-        r#"{"name":"agentscope","version":"1.0.0","description":"AgentScope scope firewall for AI coding agents.","repository":"https://github.com/abdouloued/agentscopev2","license":"MIT","skills":"./skills/","mcpServers":"./.mcp.json","keywords":["scope","policy","git","ai-agent","firewall","audit","mission","agentscope"]}"#,
-    )?;
-    std::fs::write(
-        cache_dir.join(".mcp.json"),
-        r#"{"mcpServers":{"agentscope":{"command":"agentscope","args":["mcp"],"env":{}}}}"#,
-    )?;
-    std::fs::write(cache_dir.join("CLAUDE.md"), include_str!("../plugins/agentscope/CLAUDE.md"))?;
-    std::fs::write(
-        cache_dir.join("skills").join("scope-guard").join("SKILL.md"),
-        include_str!("../plugins/agentscope/skills/scope-guard/SKILL.md"),
-    )?;
-    std::fs::write(
-        cache_dir.join("skills").join("scope-check").join("SKILL.md"),
-        include_str!("../plugins/agentscope/skills/scope-check/SKILL.md"),
-    )?;
+    const PLUGIN_JSON: &str = r#"{"name":"agentscope","version":"1.0.0","description":"AgentScope scope firewall for AI coding agents.","repository":"https://github.com/abdouloued/agentscopev2","license":"MIT","skills":"./skills/","mcpServers":"./.mcp.json","keywords":["scope","policy","git","ai-agent","firewall","audit","mission","agentscope"]}"#;
+    const MCP_JSON: &str = r#"{"mcpServers":{"agentscope":{"command":"agentscope","args":["mcp"],"env":{}}}}"#;
+    const CLAUDE_MD: &str = include_str!("../plugins/agentscope/CLAUDE.md");
+    const SCOPE_GUARD: &str = include_str!("../plugins/agentscope/skills/scope-guard/SKILL.md");
+    const SCOPE_CHECK: &str = include_str!("../plugins/agentscope/skills/scope-check/SKILL.md");
 
-    // ── 2. Register marketplace in known_marketplaces.json ─────────────────
+    // ── 1. Write plugin files to cache ──────────────────────────────────────
+    for dir in [
+        cache_dir.join(".claude-plugin"),
+        cache_dir.join("skills").join("scope-guard"),
+        cache_dir.join("skills").join("scope-check"),
+    ] {
+        std::fs::create_dir_all(&dir)?;
+    }
+    std::fs::write(cache_dir.join(".claude-plugin").join("plugin.json"), PLUGIN_JSON)?;
+    std::fs::write(cache_dir.join(".mcp.json"), MCP_JSON)?;
+    std::fs::write(cache_dir.join("CLAUDE.md"), CLAUDE_MD)?;
+    std::fs::write(cache_dir.join("skills").join("scope-guard").join("SKILL.md"), SCOPE_GUARD)?;
+    std::fs::write(cache_dir.join("skills").join("scope-check").join("SKILL.md"), SCOPE_CHECK)?;
+
+    // ── 2. Write marketplace directory (mirrors openai-codex structure) ─────
+    {
+        let mkt_plugin_dir = mkt_dir.join("plugins").join("agentscope");
+        for dir in [
+            mkt_dir.join(".claude-plugin"),
+            mkt_plugin_dir.join(".claude-plugin"),
+            mkt_plugin_dir.join("skills").join("scope-guard"),
+            mkt_plugin_dir.join("skills").join("scope-check"),
+        ] {
+            std::fs::create_dir_all(&dir)?;
+        }
+        // marketplace index — must match Claude Code's expected format
+        std::fs::write(
+            mkt_dir.join(".claude-plugin").join("marketplace.json"),
+            serde_json::to_string_pretty(&serde_json::json!({
+                "name": "agentscopev2",
+                "owner": { "name": "AgentScope" },
+                "metadata": {
+                    "description": "AgentScope scope firewall plugin — monitors Git changes against your mission.",
+                    "version": "1.0.0"
+                },
+                "plugins": [{
+                    "name": "agentscope",
+                    "description": "Scope firewall for AI coding agents: EXPECTED/SUSPICIOUS/BLOCKED verdicts, LLM judge, live TUI.",
+                    "version": "1.0.0",
+                    "author": { "name": "AgentScope" },
+                    "source": "./plugins/agentscope"
+                }]
+            }))?,
+        )?;
+        std::fs::write(mkt_plugin_dir.join(".claude-plugin").join("plugin.json"), PLUGIN_JSON)?;
+        std::fs::write(mkt_plugin_dir.join(".mcp.json"), MCP_JSON)?;
+        std::fs::write(mkt_plugin_dir.join("CLAUDE.md"), CLAUDE_MD)?;
+        std::fs::write(mkt_plugin_dir.join("skills").join("scope-guard").join("SKILL.md"), SCOPE_GUARD)?;
+        std::fs::write(mkt_plugin_dir.join("skills").join("scope-check").join("SKILL.md"), SCOPE_CHECK)?;
+    }
+
+    // ── 3. Register marketplace in known_marketplaces.json ─────────────────
     let km_path = plugins_dir.join("known_marketplaces.json");
     let mut km: Value = if km_path.exists() {
         serde_json::from_str(&std::fs::read_to_string(&km_path)?).unwrap_or(serde_json::json!({}))
     } else {
         serde_json::json!({})
     };
-    if km.get("agentscopev2").is_none() {
-        km["agentscopev2"] = serde_json::json!({
-            "source": { "source": "github", "repo": "abdouloued/agentscopev2" },
-            "installLocation": plugins_dir.join("marketplaces").join("agentscopev2").display().to_string(),
-            "lastUpdated": Utc::now().to_rfc3339()
-        });
-        std::fs::write(&km_path, serde_json::to_string_pretty(&km)?)?;
-    }
+    // Always overwrite — use local source so Claude Code doesn't try to fetch from GitHub
+    km["agentscopev2"] = serde_json::json!({
+        "source": { "source": "local", "path": mkt_dir.display().to_string() },
+        "installLocation": mkt_dir.display().to_string(),
+        "lastUpdated": Utc::now().to_rfc3339()
+    });
+    std::fs::write(&km_path, serde_json::to_string_pretty(&km)?)?;
 
-    // ── 3. Add entry to installed_plugins.json ──────────────────────────────
+    // ── 4. Add entry to installed_plugins.json ──────────────────────────────
     let ip_path = plugins_dir.join("installed_plugins.json");
     let mut ip: Value = if ip_path.exists() {
         serde_json::from_str(&std::fs::read_to_string(&ip_path)?)
@@ -1044,25 +1273,13 @@ fn register_claude_code_plugin() -> Result<()> {
     }]);
     std::fs::write(&ip_path, serde_json::to_string_pretty(&ip)?)?;
 
-    // ── 4. Enable plugin + register marketplace in settings.json ───────────
+    // ── 5. Enable plugin in settings.json ───────────────────────────────────
     let settings_path = claude_dir.join("settings.json");
     if settings_path.exists() {
         let raw = std::fs::read_to_string(&settings_path)?;
         if let Ok(mut settings) = serde_json::from_str::<Value>(&raw) {
             if let Some(obj) = settings.as_object_mut() {
-                // extraKnownMarketplaces
-                let mkts = obj
-                    .entry("extraKnownMarketplaces")
-                    .or_insert(serde_json::json!({}));
-                if mkts.get("agentscopev2").is_none() {
-                    mkts["agentscopev2"] = serde_json::json!({
-                        "source": { "source": "github", "repo": "abdouloued/agentscopev2" }
-                    });
-                }
-                // enabledPlugins
-                let enabled = obj
-                    .entry("enabledPlugins")
-                    .or_insert(serde_json::json!({}));
+                let enabled = obj.entry("enabledPlugins").or_insert(serde_json::json!({}));
                 enabled["agentscope@agentscopev2"] = serde_json::json!(true);
             }
             std::fs::write(&settings_path, serde_json::to_string_pretty(&settings)?)?;
