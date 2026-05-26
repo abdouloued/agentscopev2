@@ -2550,8 +2550,14 @@
   </div>
 </footer>
 
-<script>
-  function snippetText(surface) {
+<!-- Theme Switcher -->
+<button class="theme-switcher-btn" id="themeSwitcherBtn" type="button" aria-label="Switch theme">🎨</button>
+<div class="theme-panel" id="themePanel">
+  <div class="theme-panel-title">Choose theme</div>
+  <div id="themeSwatches"></div>
+</div>
+
+<script>  function snippetText(surface) {
     const clone = surface.cloneNode(true);
     clone.querySelectorAll('.copy-btn').forEach((button) => button.remove());
     return clone.innerText
@@ -2855,13 +2861,6 @@
     });
   })();
 </script>
-
-<!-- Theme Switcher -->
-<button class="theme-switcher-btn" id="themeSwitcherBtn" type="button" aria-label="Switch theme">🎨</button>
-<div class="theme-panel" id="themePanel">
-  <div class="theme-panel-title">Choose theme</div>
-  <div id="themeSwatches"></div>
-</div>
 
 <!-- Command Palette -->
 <div class="cmd-palette-overlay" id="cmdPaletteOverlay">
