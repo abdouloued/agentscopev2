@@ -8,6 +8,40 @@
 
 AgentScope does not replace Codex, Claude Code, Cursor, Gemini CLI, OpenCode, or Copilot. It sits beside them as a repo safety layer and real-time audit cockpit.
 
+## Install
+
+**Option 1 — pre-built binary (no Rust required):**
+
+Download the latest binary for your platform from [GitHub Releases](https://github.com/agentscope2/agentscope/releases):
+
+```bash
+# macOS Apple Silicon
+curl -L https://github.com/agentscope2/agentscope/releases/latest/download/agentscope-aarch64-apple-darwin.tar.gz | tar xz
+sudo mv agentscope-aarch64-apple-darwin /usr/local/bin/agentscope
+
+# macOS Intel
+curl -L https://github.com/agentscope2/agentscope/releases/latest/download/agentscope-x86_64-apple-darwin.tar.gz | tar xz
+sudo mv agentscope-x86_64-apple-darwin /usr/local/bin/agentscope
+
+# Linux x86_64
+curl -L https://github.com/agentscope2/agentscope/releases/latest/download/agentscope-x86_64-linux.tar.gz | tar xz
+sudo mv agentscope-x86_64-linux /usr/local/bin/agentscope
+```
+
+**Option 2 — from crates.io (requires Rust):**
+
+```bash
+cargo install agentscope
+```
+
+**Option 3 — build from source:**
+
+```bash
+git clone https://github.com/agentscope2/agentscope.git
+cd agentscope
+cargo install --path . --force
+```
+
 ## The 30-second version
 
 ```bash

@@ -5,10 +5,13 @@ edition = "2021"
 authors = ["AgentScope Contributors"]
 description = "Scope firewall and audit layer for AI coding agents"
 license = "MIT"
-repository = "https://github.com/abdouloued/agentscopev2"
+repository = "https://github.com/agentscope2/agentscope"
+homepage = "https://abdouloued.github.io"
+documentation = "https://github.com/agentscope2/agentscope#readme"
 keywords = ["ai", "agents", "git", "cli", "developer-tools"]
 categories = ["command-line-utilities", "development-tools"]
 readme = "README.md"
+rust-version = "1.75"
 
 [[bin]]
 name = "agentscope"
