@@ -608,6 +608,15 @@
     text-overflow: ellipsis;
   }
   .app-launch-cmd:hover { color: var(--text); }
+  .app-launch-mode {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin: 10px 0 5px;
+  }
+  .app-launch-mode:first-of-type { margin-top: 0; }
 
   /* ── LOCAL DEV SECTION ── */
   .local-dev-grid {
@@ -1435,31 +1444,49 @@
 
     <div class="reveal" style="margin: 8px 0 32px;">
       <p class="section-label">Applications</p>
-      <h3 style="font-size: 18px; font-weight: 400; color: var(--text); margin-bottom: 8px;">Launch with Ollama</h3>
-      <p class="section-sub" style="margin-bottom: 16px;">Pick an app and a model. These examples use <code style="color:var(--lime);background:var(--surface2);padding:1px 6px;border-radius:3px;font-size:0.9em;">qwen3.5</code>.</p>
+      <h3 style="font-size: 18px; font-weight: 400; color: var(--text); margin-bottom: 8px;">Launch native or with Ollama</h3>
+      <p class="section-sub" style="margin-bottom: 16px;">Run the app directly if it is installed, or launch the same app through Ollama with <code style="color:var(--lime);background:var(--surface2);padding:1px 6px;border-radius:3px;font-size:0.9em;">qwen3.5</code>.</p>
       <div class="app-launch-grid">
         <div class="app-launch-card">
           <p class="app-launch-name">Claude Code</p>
+          <p class="app-launch-mode">Native</p>
+          <div class="app-launch-cmd">claude</div>
+          <p class="app-launch-mode">Ollama</p>
           <div class="app-launch-cmd">ollama launch claude --model qwen3.5</div>
         </div>
         <div class="app-launch-card">
           <p class="app-launch-name">Codex App</p>
-          <div class="app-launch-cmd">ollama launch codex-app --model qwen3.5</div>
+          <p class="app-launch-mode">Native</p>
+          <div class="app-launch-cmd">open -a Codex</div>
+          <p class="app-launch-mode">Ollama</p>
+          <div class="app-launch-cmd">Use Codex CLI: ollama launch codex --model qwen3.5</div>
         </div>
         <div class="app-launch-card">
           <p class="app-launch-name">OpenClaw</p>
+          <p class="app-launch-mode">Native</p>
+          <div class="app-launch-cmd">openclaw</div>
+          <p class="app-launch-mode">Ollama</p>
           <div class="app-launch-cmd">ollama launch openclaw --model qwen3.5</div>
         </div>
         <div class="app-launch-card">
           <p class="app-launch-name">Hermes Agent</p>
+          <p class="app-launch-mode">Native</p>
+          <div class="app-launch-cmd">hermes</div>
+          <p class="app-launch-mode">Ollama</p>
           <div class="app-launch-cmd">ollama launch hermes --model qwen3.5</div>
         </div>
         <div class="app-launch-card">
           <p class="app-launch-name">Codex</p>
+          <p class="app-launch-mode">Native</p>
+          <div class="app-launch-cmd">codex</div>
+          <p class="app-launch-mode">Ollama</p>
           <div class="app-launch-cmd">ollama launch codex --model qwen3.5</div>
         </div>
         <div class="app-launch-card">
           <p class="app-launch-name">OpenCode</p>
+          <p class="app-launch-mode">Native</p>
+          <div class="app-launch-cmd">opencode</div>
+          <p class="app-launch-mode">Ollama</p>
           <div class="app-launch-cmd">ollama launch opencode --model qwen3.5</div>
         </div>
       </div>
@@ -1740,14 +1767,15 @@
             <span class="terminal-title">install + activate</span>
           </div>
           <div class="terminal-body">
-<span class="t-line t-muted"># Add the AgentScope plugin marketplace</span>
+<span class="t-line t-muted"># Install plugin files + register with Claude Code (once per project)</span>
+<span class="t-line"><span class="t-cmd">agentscope plugins install</span> <span class="t-info">--agent claude</span></span>
+<span class="t-line">&nbsp;</span>
+<span class="t-line t-muted"># Restart Claude Code, then verify in /plugins → Installed tab</span>
+<span class="t-line t-muted"># Plugin ID: agentscope@agentscopev2</span>
+<span class="t-line">&nbsp;</span>
+<span class="t-line t-muted"># Or add marketplace manually from inside Claude Code:</span>
 <span class="t-line"><span class="t-cmd">/plugin marketplace add</span> <span class="t-info">abdouloued/abdouloued.github.io</span></span>
-<span class="t-line">&nbsp;</span>
-<span class="t-line t-muted"># Install the plugin from that marketplace</span>
 <span class="t-line"><span class="t-cmd">/plugin install</span> <span class="t-info">agentscope@agentscope</span></span>
-<span class="t-line">&nbsp;</span>
-<span class="t-line t-muted"># Local development before publishing:</span>
-<span class="t-line"><span class="t-cmd">/plugin marketplace add</span> <span class="t-info">/path/to/agentscopev2</span></span>
           </div>
         </div>
       </div>
@@ -2100,8 +2128,10 @@
 <span class="t-line"><span class="t-cmd">agentscope judge</span> <span class="t-info">-m qwen3.5:2b</span>                    <span class="t-muted"># specify model (ollama)</span></span>
 <span class="t-line"><span class="t-cmd">agentscope judge</span> <span class="t-info">-p claude</span>                        <span class="t-muted"># anthropic claude</span></span>
 <span class="t-line"><span class="t-cmd">agentscope judge</span> <span class="t-info">-p openai -m gpt-4o</span>             <span class="t-muted"># openai</span></span>
-<span class="t-line"><span class="t-cmd">agentscope model list</span>                              <span class="t-muted"># list available ollama models</span></span>
+<span class="t-line"><span class="t-cmd">agentscope judge</span> <span class="t-info">-p gemini</span>                        <span class="t-muted"># google gemini</span></span>
+<span class="t-line"><span class="t-cmd">agentscope model list</span>                              <span class="t-muted"># list available ollama models + cloud providers</span></span>
 <span class="t-line"><span class="t-cmd">agentscope model set</span> <span class="t-info">qwen3.5:2b</span>                   <span class="t-muted"># set default judge model</span></span>
+<span class="t-line"><span class="t-cmd">agentscope model test</span>                              <span class="t-muted"># test current model with a simple prompt</span></span>
 <span class="t-line"><span class="t-cmd">agentscope model pull</span> <span class="t-info">llama3</span>                      <span class="t-muted"># pull model from ollama</span></span>
 <span class="t-line">&nbsp;</span>
 <span class="t-line t-muted">## Reports &amp; Audit</span>
@@ -2116,6 +2146,7 @@
 <span class="t-line t-muted">## Integrations</span>
 <span class="t-line"><span class="t-cmd">agentscope hook install</span>                            <span class="t-muted"># install pre-commit hook</span></span>
 <span class="t-line"><span class="t-cmd">agentscope hook uninstall</span>                          <span class="t-muted"># remove hook</span></span>
+<span class="t-line"><span class="t-cmd">agentscope hook status</span>                             <span class="t-muted"># show current hook status</span></span>
 <span class="t-line"><span class="t-cmd">agentscope plugins install</span> <span class="t-info">--agent all</span>           <span class="t-muted"># write guidance files for all agents</span></span>
 <span class="t-line"><span class="t-cmd">agentscope plugins install</span> <span class="t-info">--agent claude</span>        <span class="t-muted"># writes to CLAUDE.md only</span></span>
 <span class="t-line"><span class="t-cmd">agentscope skills install</span> <span class="t-info">--agent all</span>            <span class="t-muted"># write skill instructions for all agents</span></span>
@@ -2551,7 +2582,7 @@
       { group: 'Launcher Lab', name: '/launchers', desc: 'List launcher apps', cli: 'agentscope launchers list' },
       { group: 'Launcher Lab', name: '/launcher-test', desc: 'Safe startup test', cli: 'agentscope launchers test codex' },
       { group: 'Launcher Lab', name: '/ollama-claude', desc: 'Launch Claude Code with Ollama', cli: 'ollama launch claude --model qwen3.5' },
-      { group: 'Launcher Lab', name: '/ollama-codex-app', desc: 'Launch Codex App with Ollama', cli: 'ollama launch codex-app --model qwen3.5' },
+      { group: 'Launcher Lab', name: '/native-codex-app', desc: 'Launch Codex App natively', cli: 'open -a Codex' },
       { group: 'Launcher Lab', name: '/ollama-openclaw', desc: 'Launch OpenClaw with Ollama', cli: 'ollama launch openclaw --model qwen3.5' },
       { group: 'Launcher Lab', name: '/ollama-hermes', desc: 'Launch Hermes with Ollama', cli: 'ollama launch hermes --model qwen3.5' },
       { group: 'Launcher Lab', name: '/ollama-codex', desc: 'Launch Codex with Ollama', cli: 'ollama launch codex --model qwen3.5' },

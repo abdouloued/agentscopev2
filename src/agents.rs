@@ -120,9 +120,6 @@ pub(crate) fn launch_command(agent: &str, model: &str) -> Option<String> {
     let target = match normalize_agent(agent).ok()? {
         "claude-code" => "claude",
         "codex" => "codex",
-        "codex-app" => "codex-app",
-        "gemini-cli" => "gemini",
-        "antigravity" => "antigravity",
         "opencode" => "opencode",
         "openclaw" => "openclaw",
         "hermes" => "hermes",
@@ -1248,15 +1245,7 @@ mod tests {
         );
         assert_eq!(
             launch_command("codex-app", "qwen3.5").as_deref(),
-            Some("ollama launch codex-app --model qwen3.5")
-        );
-        assert_eq!(
-            launch_command("gemini", "qwen3.5").as_deref(),
-            Some("ollama launch gemini --model qwen3.5")
-        );
-        assert_eq!(
-            launch_command("antigravity", "qwen3.5").as_deref(),
-            Some("ollama launch antigravity --model qwen3.5")
+            None
         );
         assert_eq!(
             launch_command("openclaw", "qwen3.5").as_deref(),

@@ -44,13 +44,11 @@ Only `--apply` writes `.agentscope/session.json`.
 
 AgentScope recursively scans likely JSON, JSONL, text, markdown, chat, transcript, and rollout files under those roots.
 
-Ollama launch aliases that AgentScope recognizes:
+Native and Ollama launch aliases that AgentScope recognizes:
 
 ```bash
 ollama launch claude --model qwen3.5
-ollama launch codex-app --model qwen3.5
-ollama launch gemini --model qwen3.5
-ollama launch antigravity --model qwen3.5
+open -a Codex
 ollama launch openclaw --model qwen3.5
 ollama launch hermes --model qwen3.5
 ollama launch codex --model qwen3.5
